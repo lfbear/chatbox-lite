@@ -2,7 +2,14 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#faf8f3" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#1f1d1b" media="(prefers-color-scheme: dark)" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Chatbox Lite" />
+<meta name="format-detection" content="telephone=no" />
 <title data-i18n="app.title">Chatbox Lite · Multi-Model Chat</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css" />
@@ -40,14 +47,15 @@ html[data-theme="dark"]{
   --danger:#d18484;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0;font-family:"Inter","-apple-system",BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:"cv11","ss01";letter-spacing:0.01em;}
-button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+html,body{height:100%;margin:0;font-family:"Inter","-apple-system",BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:"cv11","ss01";letter-spacing:0.01em;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 input,textarea,select{font-family:inherit;color:inherit;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;outline:none}
 input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+a{-webkit-tap-highlight-color:transparent}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:4px}
 
-.app{display:flex;height:100vh;overflow:hidden}
+.app{display:flex;height:100vh;height:100dvh;overflow:hidden}
 
 /* Sidebar */
 .sidebar{width:260px;background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
@@ -78,7 +86,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 .top-bar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--bg)}
 .top-bar .title{flex:1;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-bar select{font-size:13px;padding:6px 8px;min-width:180px}
-.messages{flex:1;overflow-y:auto;padding:20px 0}
+.messages{flex:1;overflow-y:auto;padding:20px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .msg-wrap{max-width:840px;margin:0 auto;padding:0 20px}
 .msg{display:flex;gap:12px;margin-bottom:18px;position:relative}
 .msg .avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:600}
@@ -144,7 +152,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 .thinking-toggle.on .sw::after{left:11px}
 
 /* Composer */
-.composer-wrap{padding:8px 20px 16px;background:var(--bg);border-top:1px solid var(--border);position:relative}
+.composer-wrap{padding:8px 20px max(16px, env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--border);position:relative}
 
 /* 浮动"回到最新"按钮：用户滚离底部时出现 */
 .scroll-bottom-btn{
@@ -235,14 +243,91 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 .welcome-suggestions button:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-3)}
 .drag-overlay{position:fixed;inset:0;background:rgba(59,111,224,.1);border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--accent);z-index:200;pointer-events:none}
 .drag-overlay.hide{display:none}
-@media (max-width:720px){
-  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);transition:transform .2s}
+/* iPad portrait & phones: collapse sidebar into off-canvas */
+@media (max-width:768px){
+  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%);transition:transform .2s;width:84vw;max-width:300px;padding-left:env(safe-area-inset-left);padding-top:env(safe-area-inset-top)}
   .sidebar.open{transform:translateX(0)}
-  .mobile-mask{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:49;display:none}
+  .mobile-mask{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:49;display:none}
   .mobile-mask.show{display:block}
   .menu-btn{display:inline-flex}
+
+  /* Larger tap targets per Apple HIG */
+  .icon-btn{width:40px;height:40px;font-size:17px}
+  .lang-btn{width:auto;min-width:38px;height:36px;padding:0 10px;font-size:12px}
+  .send-btn{width:40px;height:40px}
+  .new-chat{padding:12px;font-size:15px}
+  .chat-item{padding:10px 12px;font-size:14px}
+  .sidebar-footer button{padding:10px 6px}
+
+  /* Top bar: keep everything on one line on narrow screens */
+  .top-bar{padding:8px 12px;gap:6px;padding-top:max(8px, env(safe-area-inset-top))}
+  .top-bar .title{font-size:13px;flex:1;min-width:0}
+  .top-bar select{min-width:0;max-width:46vw;font-size:13px;padding:6px 6px}
+  .thinking-toggle{padding:5px 8px;font-size:11.5px}
+  .thinking-toggle span:last-child{display:none}
+
+  /* Messages: tighter horizontal padding */
+  .messages{padding:14px 0}
+  .msg-wrap{padding:0 14px}
+  .msg{gap:10px;margin-bottom:14px}
+  .msg .avatar{width:28px;height:28px;font-size:12px}
+  .msg .content{font-size:15px;line-height:1.7}
+  .msg .content img{max-width:100%}
+  .msg .attachments img{max-width:140px;max-height:140px}
+  .msg .copy,.msg .act{opacity:1}
+
+  /* Composer: 16px font on inputs avoids iOS Safari zoom */
+  .composer{padding:6px;border-radius:12px}
+  .composer textarea{font-size:16px;padding:8px 6px}
+  .composer-actions{padding:0 2px}
+  .composer-actions .hint{display:none}
+  .composer-actions .icon-btn{width:38px;height:38px}
+
+  /* Welcome chips */
+  .welcome-suggestions{padding:0 14px 8px;gap:6px}
+  .welcome-suggestions button{font-size:12.5px;padding:7px 12px}
+
+  /* Empty state */
+  .empty-state{padding:24px 18px}
+  .empty-state h2{font-size:19px}
+  .empty-state .prompts{grid-template-columns:1fr;gap:8px;margin-top:18px}
+
+  /* Settings modal: full-screen on mobile */
+  .modal-mask{align-items:stretch;justify-content:stretch}
+  .modal{width:100vw;height:100dvh;max-width:100vw;max-height:100dvh;border-radius:0;padding-top:env(safe-area-inset-top)}
+  .modal-header{padding:12px 16px}
+  .modal-body{padding:14px 16px}
+  .modal-footer{padding:12px 16px max(12px, env(safe-area-inset-bottom));position:sticky;bottom:0;background:var(--bg)}
+  .modal-footer .btn{padding:10px 18px;font-size:14px;min-height:42px}
+
+  /* Forms */
+  .form-row input,.form-row textarea,.form-row select{font-size:16px}
+  .row-2{grid-template-columns:1fr}
+  .tabs{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{flex:0 0 auto;font-size:13.5px;padding:10px 14px}
+  .provider-block h4{font-size:13px;line-height:1.4}
+  .picker-list{max-height:50vh}
+  .picker-header{gap:4px}
+  .picker-header .btn{padding:6px 10px;font-size:12px}
+  .fetch-btn{padding:5px 10px;font-size:12px}
+
+  /* Scroll-to-bottom button: lift above iOS home indicator */
+  .scroll-bottom-btn{right:14px;width:38px;height:38px;font-size:18px}
+
+  /* Drag overlay hidden on touch (no drag) */
+  .drag-overlay{font-size:15px;padding:24px}
 }
-@media (min-width:721px){
+
+/* Small phones */
+@media (max-width:380px){
+  .top-bar select{max-width:38vw}
+  .thinking-toggle{padding:4px 6px}
+  .new-chat{font-size:14px}
+}
+
+/* Desktop / iPad landscape: keep persistent sidebar */
+@media (min-width:769px){
   .menu-btn{display:none}
 }
 </style>
@@ -314,8 +399,8 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 
         <div class="provider-block">
           <h4 data-i18n="providers.openai.title">🟢 OpenAI compatible (incl. DeepSeek / Moonshot / SiliconFlow / OpenRouter / LM Studio / vLLM)</h4>
-          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_openai_base" placeholder="https://api.openai.com/v1" /></div>
-          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_openai_key" type="password" placeholder="sk-..." /></div>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_openai_base" type="url" inputmode="url" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://api.openai.com/v1" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_openai_key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="sk-..." /></div>
           <div class="form-row">
             <label class="model-label">
               <span data-i18n="providers.modelList.withComment">Model list (one per line, # for comments)</span>
@@ -337,8 +422,8 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 
         <div class="provider-block">
           <h4 data-i18n="providers.claude.title">🟣 Anthropic Claude</h4>
-          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_claude_base" placeholder="https://api.anthropic.com/v1" /></div>
-          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_claude_key" type="password" placeholder="sk-ant-..." /></div>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_claude_base" type="url" inputmode="url" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://api.anthropic.com/v1" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_claude_key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="sk-ant-..." /></div>
           <div class="form-row">
             <label class="model-label">
               <span data-i18n="providers.modelList">Model list (one per line)</span>
@@ -360,8 +445,8 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 
         <div class="provider-block">
           <h4 data-i18n="providers.gemini.title">🔵 Google Gemini</h4>
-          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_gemini_base" placeholder="https://generativelanguage.googleapis.com/v1beta" /></div>
-          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_gemini_key" type="password" placeholder="AIza..." /></div>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_gemini_base" type="url" inputmode="url" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://generativelanguage.googleapis.com/v1beta" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_gemini_key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="AIza..." /></div>
           <div class="form-row">
             <label class="model-label">
               <span data-i18n="providers.modelList">Model list (one per line)</span>
@@ -391,8 +476,8 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
             </select>
             <span class="hint" data-i18n-html="ollama.protocol.hint">Auto-detect tries <code>/api/tags</code> first — if found, uses Ollama native; otherwise falls back to OpenAI compatible.</span>
           </div>
-          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_ollama_base" placeholder="Ollama→http://localhost:11434  ·  llama.cpp→http://localhost:8080  ·  LM Studio→http://localhost:1234" /></div>
-          <div class="form-row"><label data-i18n="providers.apiKeyOptional">API Key (optional)</label><input id="cfg_ollama_key" type="password" data-i18n-placeholder="ollama.key.placeholder" placeholder="Optional" /></div>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_ollama_base" type="url" inputmode="url" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ollama→http://localhost:11434  ·  llama.cpp→http://localhost:8080  ·  LM Studio→http://localhost:1234" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKeyOptional">API Key (optional)</label><input id="cfg_ollama_key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-i18n-placeholder="ollama.key.placeholder" placeholder="Optional" /></div>
           <div class="form-row">
             <label class="model-label">
               <span data-i18n="providers.modelList">Model list (one per line)</span>
@@ -420,10 +505,10 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
         </div>
         <div class="form-row"><label data-i18n="general.system.label">System prompt (default)</label><textarea id="cfg_system" rows="4" placeholder="You are a helpful assistant."></textarea></div>
         <div class="row-2">
-          <div class="form-row"><label data-i18n="general.temperature.label">Temperature</label><input id="cfg_temp" type="number" min="0" max="2" step="0.1" value="0.7" /></div>
-          <div class="form-row"><label data-i18n="general.maxTokens.label">Max output tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" data-i18n-placeholder="general.maxTokens.placeholder" placeholder="Leave empty to use model default" /></div>
+          <div class="form-row"><label data-i18n="general.temperature.label">Temperature</label><input id="cfg_temp" type="number" min="0" max="2" step="0.1" value="0.7" inputmode="decimal" /></div>
+          <div class="form-row"><label data-i18n="general.maxTokens.label">Max output tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" inputmode="numeric" data-i18n-placeholder="general.maxTokens.placeholder" placeholder="Leave empty to use model default" /></div>
         </div>
-        <div class="form-row"><label data-i18n="general.historyN.label">History messages kept (context length)</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" /></div>
+        <div class="form-row"><label data-i18n="general.historyN.label">History messages kept (context length)</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" inputmode="numeric" /></div>
         <div class="form-row"><label><input id="cfg_show_thinking" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.showThinking.label">Enable and show model thinking</span></label><span class="hint" data-i18n-html="general.showThinking.hint">When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.</span></div>
       </div>
 
@@ -929,7 +1014,11 @@ function newChat(){
   state.chats.unshift(chat);
   state.activeChatId = id;
   saveState(); renderChatList(); renderMessages(); updateTopBar();
-  document.getElementById("input").focus();
+  closeMobileSidebar();
+  // Avoid focus on mobile — focus triggers iOS keyboard immediately
+  if(window.matchMedia && !window.matchMedia("(max-width: 768px)").matches){
+    document.getElementById("input").focus();
+  }
 }
 function deleteChat(id){
   if(!confirm(t("confirm.deleteChat"))) return;
