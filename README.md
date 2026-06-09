@@ -129,7 +129,7 @@
 
 ## 🤝 贡献
 
-PR / Issue 都欢迎。因为是单文件项目，改动直接编辑 `chatbox-lite.html` 即可，无需构建。
+PR / Issue 都欢迎。因为是单文件项目，改动直接编辑 `chatbox-lite/index.html` 即可，无需构建。
 
 ---
 
