@@ -229,6 +229,10 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 .empty-state .prompts{margin-top:24px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:600px;width:100%}
 .empty-state .prompts button{padding:12px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;text-align:left;font-size:13px;color:var(--fg)}
 .empty-state .prompts button:hover{border-color:var(--accent)}
+/* Welcome-chat suggestion chips */
+.welcome-suggestions{max-width:840px;margin:0 auto;padding:0 20px 8px;display:flex;flex-wrap:wrap;gap:8px}
+.welcome-suggestions button{padding:6px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:18px;font-size:12.5px;color:var(--fg);cursor:pointer;transition:all .15s}
+.welcome-suggestions button:hover{border-color:var(--accent);color:var(--accent);background:var(--bg-3)}
 .drag-overlay{position:fixed;inset:0;background:rgba(59,111,224,.1);border:3px dashed var(--accent);display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--accent);z-index:200;pointer-events:none}
 .drag-overlay.hide{display:none}
 @media (max-width:720px){
@@ -616,7 +620,22 @@ const I18N = {
     "attach.label":"[Attachment: {0}]",
     "userName.default":"Me",
     "aiName.default":"AI",
-    "vendor.local":"Local"
+    "vendor.local":"Local",
+    "welcome.title":"Welcome",
+    "welcome.greeting":"👋 Hi! I'm **Chatbox Lite** — a single HTML file that talks to many AI models, right from your browser.\n\n**⚡ 30-second setup**\n\n1. Click **⚙ Settings** at the bottom-left\n2. Paste an API Key for any provider — or use local **Ollama** for free\n3. Hit **🔄 Fetch model list** and tick the models you want\n4. Save, then pick a model from the top dropdown ✨\n\n💬 Or just type below — I'll share onboarding tips until you've configured a model.",
+    "welcome.q1":"🤔 What is this?",
+    "welcome.q1.text":"What is this and what can I do with it?",
+    "welcome.q2":"🚀 How do I get started?",
+    "welcome.q2.text":"How do I get started?",
+    "welcome.q3":"🔒 Is my data safe?",
+    "welcome.q3.text":"Is my data safe?",
+    "welcome.q4":"💰 Free option?",
+    "welcome.q4.text":"Can I use it without paying for an API?",
+    "welcome.tip.1":"⚙ **Setup tour**\n\n1. Click **⚙ Settings** at the bottom-left\n2. Pick any provider — OpenAI / Claude / Gemini / Ollama\n3. Paste your Base URL + API Key\n4. Click **🔄 Fetch model list** and tick the models\n5. Save — pick a model from the top dropdown and you're ready 🎉",
+    "welcome.tip.2":"🔒 **Your data stays with you**\n\n- All keys and chats live in `localStorage` on this device\n- Nothing is uploaded to any server — except the AI API you choose\n- Use **⬇ Export / ⬆ Import** for local backups\n- ⚠️ Don't use this on shared computers — exported JSON contains plaintext keys",
+    "welcome.tip.3":"💰 **No API key? Try local Ollama (free)**\n\n1. Install Ollama from **ollama.com**\n2. Launch with CORS open: `OLLAMA_ORIGINS=* ollama serve`\n3. Pull a model: `ollama pull llama3.2`\n4. In **Settings**, fill Base URL `http://localhost:11434`\n5. Pick the model up top and chat away 🦙",
+    "welcome.tip.4":"✨ **Things you can do here**\n\n- 🖼 Paste or drag images directly into the input\n- 📎 Drop PDFs, Word docs, or code files — auto-parsed as context\n- 🧠 See the model's thinking (Claude / Gemini / R1 / Ollama)\n- 🔄 Regenerate any reply with a different model\n- ✏ Edit & resend any of your past messages",
+    "welcome.tip.5":"🌐 **Supported providers**\n\n- **OpenAI compatible** — OpenAI, DeepSeek, Moonshot, SiliconFlow, OpenRouter, vLLM…\n- **Anthropic Claude** — all browser-direct models\n- **Google Gemini** — anything on AI Studio\n- **Local** — Ollama, llama.cpp, LM Studio\n\n💡 Switch models per message from the top-bar dropdown — no need to commit."
   },
   zh: {
     "app.title":"Chatbox Lite · 多模型对话",
@@ -732,7 +751,22 @@ const I18N = {
     "attach.label":"【附件: {0}】",
     "userName.default":"我",
     "aiName.default":"AI",
-    "vendor.local":"本地"
+    "vendor.local":"本地",
+    "welcome.title":"欢迎",
+    "welcome.greeting":"👋 你好！我是 **Chatbox Lite** —— 一个单文件 HTML，在浏览器里让你直连各家 AI 模型。\n\n**⚡ 30 秒上手**\n\n1. 点左下角 **⚙ 设置**\n2. 填一个供应商的 API Key —— 或者用本地 **Ollama**（免费）\n3. 点 **🔄 获取模型列表** 勾选要用的模型\n4. 保存，然后在顶部下拉里选择模型 ✨\n\n💬 也可以直接在下面问我，配置完成前我会给你一些上手贴士。",
+    "welcome.q1":"🤔 这是什么？",
+    "welcome.q1.text":"这是什么？能用来干什么？",
+    "welcome.q2":"🚀 怎么开始用？",
+    "welcome.q2.text":"我应该怎么开始？",
+    "welcome.q3":"🔒 数据安全吗？",
+    "welcome.q3.text":"我的数据安全吗？",
+    "welcome.q4":"💰 有免费方案吗？",
+    "welcome.q4.text":"不付费也能用吗？",
+    "welcome.tip.1":"⚙ **配置指南**\n\n1. 点左下角 **⚙ 设置**\n2. 任选一个供应商 —— OpenAI / Claude / Gemini / Ollama\n3. 填入 Base URL 和 API Key\n4. 点 **🔄 获取模型列表**，勾选你要用的\n5. 保存 —— 在顶部下拉里选个模型，可以开聊 🎉",
+    "welcome.tip.2":"🔒 **数据完全是你的**\n\n- 所有 Key 和聊天记录都存在当前浏览器的 `localStorage`\n- 除了你选的 AI 服务，不会发往任何服务器\n- 通过 **⬇ 导出 / ⬆ 导入** 可以本地备份\n- ⚠️ 公共电脑别用 —— 导出的 JSON 是明文 Key",
+    "welcome.tip.3":"💰 **没有 API Key？试试本地 Ollama（免费）**\n\n1. 在 **ollama.com** 安装 Ollama\n2. 带 CORS 启动：`OLLAMA_ORIGINS=* ollama serve`\n3. 拉一个模型：`ollama pull llama3.2`\n4. 在 **设置** 里填 Base URL `http://localhost:11434`\n5. 顶部选模型，开聊 🦙",
+    "welcome.tip.4":"✨ **这里能做什么**\n\n- 🖼 直接粘贴或拖拽图片进输入框\n- 📎 拖入 PDF / Word / 代码文件，自动解析为上下文\n- 🧠 查看模型的思考过程（Claude / Gemini / R1 / Ollama）\n- 🔄 用不同模型重新生成任意回复\n- ✏ 编辑并重发你的任意历史消息",
+    "welcome.tip.5":"🌐 **支持的供应商**\n\n- **OpenAI 兼容** —— OpenAI、DeepSeek、Moonshot、硅基流动、OpenRouter、vLLM…\n- **Anthropic Claude** —— 所有支持浏览器直连的模型\n- **Google Gemini** —— AI Studio 上的所有模型\n- **本地** —— Ollama、llama.cpp、LM Studio\n\n💡 顶部下拉里逐条消息切换模型 —— 不用一开始就锁定。"
   }
 };
 function curLang(){ return (state && state.lang) || detectLang(); }
@@ -763,6 +797,35 @@ function setLang(lang){
   renderChatList();
   renderMessages();
   updateTopBar();
+}
+
+/* ------------------------- Welcome chat ------------------------- */
+const WELCOME_SUGGESTIONS = ["welcome.q1","welcome.q2","welcome.q3","welcome.q4"];
+const WELCOME_TIP_KEYS = ["welcome.tip.1","welcome.tip.2","welcome.tip.3","welcome.tip.4","welcome.tip.5"];
+function hasConfiguredLLM(){
+  const cfg = state && state.config; if(!cfg) return false;
+  // any provider with an API key set
+  if(["openai","claude","gemini","ollama"].some(p => (cfg[p]?.key||"").trim())) return true;
+  // ollama can work without key — count it if user has changed base from default OR fetched/used models
+  // (kept conservative: require explicit key for "configured" check to avoid false positives on defaults)
+  return false;
+}
+function createWelcomeChat(){
+  const id = uid();
+  const chat = {
+    id,
+    title: t("welcome.title"),
+    model: state.lastModel || "",
+    systemPrompt: state.general.systemPrompt,
+    messages: [
+      { role:"assistant", i18nKey:"welcome.greeting", content:"", time: Date.now() }
+    ],
+    isWelcome: true,
+    createdAt: Date.now()
+  };
+  state.chats.unshift(chat);
+  state.activeChatId = id;
+  saveState();
 }
 
 let state = loadState();
@@ -872,7 +935,10 @@ function deleteChat(id){
   if(!confirm(t("confirm.deleteChat"))) return;
   state.chats = state.chats.filter(c=>c.id!==id);
   if(state.activeChatId===id) state.activeChatId = state.chats[0]?.id || null;
-  if(!state.activeChatId) newChat(); else { saveState(); renderChatList(); renderMessages(); updateTopBar(); }
+  if(!state.activeChatId){
+    if(hasConfiguredLLM()) newChat();
+    else { createWelcomeChat(); renderChatList(); renderMessages(); updateTopBar(); }
+  } else { saveState(); renderChatList(); renderMessages(); updateTopBar(); }
 }
 function renameChat(id){
   const c = state.chats.find(x=>x.id===id); if(!c) return;
@@ -1003,6 +1069,24 @@ function renderMessages(){
     wrap.appendChild(renderMessageEl(chat.messages[i], i));
   }
   box.appendChild(wrap);
+  // Welcome chat: show suggestion chips below greeting until first user message
+  if(chat.isWelcome && !chat.messages.some(m=>m.role==="user")){
+    const chips = document.createElement("div");
+    chips.className = "welcome-suggestions";
+    WELCOME_SUGGESTIONS.forEach(k=>{
+      const b = document.createElement("button");
+      b.textContent = t(k);
+      b.addEventListener("click",()=>{
+        const ta = document.getElementById("input");
+        ta.value = t(k+".text");
+        autoresize(ta);
+        ta.focus();
+        sendMessage();
+      });
+      chips.appendChild(b);
+    });
+    box.appendChild(chips);
+  }
   // 显式动作（新建/切换/发送/重发）→ 强制贴底
   stickToBottom = true;
   _scrollProgrammatic++;
@@ -1051,13 +1135,15 @@ function renderMessageEl(m, idx){
     slot.appendChild(det);
   }
   const contentEl = div.querySelector(".content");
+  // virtualized content: messages with i18nKey re-translate at render time
+  const liveContent = m.i18nKey ? t(m.i18nKey) : (m.content || "");
   if(m.role==="user"){
     // user shows raw text (no markdown by default, but keep newlines)
     contentEl.style.whiteSpace = "pre-wrap";
-    contentEl.textContent = m.content || "";
+    contentEl.textContent = liveContent;
   }else{
-    if(m.content){
-      contentEl.innerHTML = renderMarkdown(m.content);
+    if(liveContent){
+      contentEl.innerHTML = renderMarkdown(liveContent);
       enhanceCodeBlocks(contentEl);
       renderMathIn(contentEl);
     }else if(!m.thought && !m.reasoning){
@@ -1078,7 +1164,7 @@ function renderMessageEl(m, idx){
     }
   }
   div.querySelector("[data-copy]").addEventListener("click",()=>{
-    navigator.clipboard.writeText(m.content||"");
+    navigator.clipboard.writeText(m.i18nKey ? t(m.i18nKey) : (m.content||""));
   });
   // 重发 / 编辑按钮
   const roleBar = div.querySelector(".role");
@@ -1225,9 +1311,14 @@ async function sendMessage(){
   let chat = currentChat();
   if(!chat){ newChat(); chat = currentChat(); }
 
+  // Welcome chat without any configured LLM → reply with a canned onboarding tip
+  const welcomeMode = chat.isWelcome && !hasConfiguredLLM();
+
   const sel = document.getElementById("modelSelect").value;
-  if(!sel){ alert(t("alert.modelRequiredSend")); return; }
-  chat.model = sel; state.lastModel = sel;
+  if(!welcomeMode){
+    if(!sel){ alert(t("alert.modelRequiredSend")); return; }
+    chat.model = sel; state.lastModel = sel;
+  }
 
   const userMsg = {
     role:"user", content:text,
@@ -1241,7 +1332,8 @@ async function sendMessage(){
   // auto title
   const defaultTitleZh = "新对话";
   const defaultTitleEn = "New chat";
-  if(chat.messages.filter(m=>m.role==="user").length===1 && (chat.title===defaultTitleZh || chat.title===defaultTitleEn || !chat.title)){
+  const welcomeTitleEn = "Welcome", welcomeTitleZh = "欢迎";
+  if(chat.messages.filter(m=>m.role==="user").length===1 && (chat.title===defaultTitleZh || chat.title===defaultTitleEn || chat.title===welcomeTitleEn || chat.title===welcomeTitleZh || !chat.title)){
     chat.title = (text || userMsg.attachments[0]?.name || t("chat.new.default")).slice(0,30);
   }
 
@@ -1249,7 +1341,49 @@ async function sendMessage(){
   chat.messages.push(aiMsg);
   saveState(); renderChatList(); renderMessages(); updateTopBar();
 
+  if(welcomeMode){
+    await sendWelcomeReply(chat, aiMsg);
+    return;
+  }
   await streamResponse(chat, aiMsg, sel);
+}
+
+/* Fake-streamed canned tip when chat.isWelcome and no LLM configured */
+async function sendWelcomeReply(chat, aiMsg){
+  setSending(true, t("status.connecting"));
+  // Small "thinking" delay so it feels like a response, not a teleport
+  await new Promise(r=>setTimeout(r, 350 + Math.random()*250));
+  setSending(true, t("status.generating"));
+  // Pick a random tip; avoid repeating the immediately previous one if possible
+  const pool = WELCOME_TIP_KEYS.slice();
+  const lastTipKey = [...chat.messages].reverse().find(m=>m.role==="assistant" && m._welcomeTipKey)?._welcomeTipKey;
+  const candidates = lastTipKey && pool.length>1 ? pool.filter(k=>k!==lastTipKey) : pool;
+  const tipKey = candidates[Math.floor(Math.random()*candidates.length)];
+  aiMsg._welcomeTipKey = tipKey;
+  const full = t(tipKey);
+  // Type out gradually for a small bit of polish
+  const chunkSize = Math.max(2, Math.ceil(full.length/40));
+  for(let i=0;i<full.length;i+=chunkSize){
+    aiMsg.content = full.slice(0, i+chunkSize);
+    const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
+    if(msgEl){
+      const contentEl = msgEl.querySelector(".content");
+      contentEl.innerHTML = renderMarkdown(aiMsg.content)+'<span class="cursor-blink"></span>';
+      enhanceCodeBlocks(contentEl);
+    }
+    maybeAutoScroll();
+    await new Promise(r=>setTimeout(r, 12));
+  }
+  aiMsg.content = full;
+  const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
+  if(msgEl){
+    const last = msgEl.querySelector(".content");
+    last.innerHTML = renderMarkdown(aiMsg.content);
+    enhanceCodeBlocks(last);
+    renderMathIn(last);
+  }
+  setSending(false);
+  saveState();
 }
 
 // 解析内联 <think>/<thinking> 标签的流式状态机
@@ -1903,7 +2037,10 @@ function importData(file){
 function init(){
   applyTheme();
   applyI18n();
-  if(state.chats.length===0) newChat();
+  if(state.chats.length===0){
+    if(hasConfiguredLLM()) newChat();
+    else createWelcomeChat();
+  }
   populateModelSelect();
   renderChatList(); renderMessages(); updateTopBar();
 
