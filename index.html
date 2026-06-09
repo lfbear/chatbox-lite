@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Chatbox Lite · 多模型对话</title>
+<title data-i18n="app.title">Chatbox Lite · Multi-Model Chat</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css" />
 <style>
@@ -55,6 +55,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--accent)}
 .sidebar-header .logo{font-weight:600;flex:1;font-size:14px}
 .icon-btn{width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--fg-2)}
 .icon-btn:hover{background:var(--bg-3);color:var(--fg)}
+.lang-btn{width:auto;padding:0 8px;font-size:11px;font-weight:600;letter-spacing:.04em}
 .new-chat{margin:8px;padding:10px;background:var(--accent);color:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px}
 .new-chat:hover{background:var(--accent-2)}
 .chat-list{flex:1;overflow-y:auto;padding:4px 8px}
@@ -249,15 +250,16 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span class="logo">💬 Chatbox Lite</span>
-      <button class="icon-btn" id="themeBtn" title="切换主题">🌓</button>
+      <button class="icon-btn lang-btn" id="langBtn" data-i18n-title="lang.switch.title" title="Language / 语言">EN</button>
+      <button class="icon-btn" id="themeBtn" data-i18n-title="theme.toggle.title" title="Toggle theme">🌓</button>
     </div>
-    <button class="new-chat" id="newChatBtn">＋ 新建对话</button>
+    <button class="new-chat" id="newChatBtn" data-i18n="sidebar.newChat">＋ New chat</button>
     <div class="chat-list" id="chatList"></div>
     <div class="sidebar-footer">
-      <button id="settingsBtn">⚙ 设置</button>
-      <button id="exportBtn">⬇ 导出</button>
-      <button id="importBtn">⬆ 导入</button>
-      <a class="github-link" href="https://github.com/lfbear/chatbox-lite" target="_blank" rel="noopener noreferrer" title="GitHub · lfbear/chatbox-lite" aria-label="GitHub repository">
+      <button id="settingsBtn" data-i18n="sidebar.settings">⚙ Settings</button>
+      <button id="exportBtn" data-i18n="sidebar.export">⬇ Export</button>
+      <button id="importBtn" data-i18n="sidebar.import">⬆ Import</button>
+      <a class="github-link" href="https://github.com/lfbear/chatbox-lite" target="_blank" rel="noopener noreferrer" data-i18n-title="github.title" data-i18n-aria="github.aria" title="GitHub · lfbear/chatbox-lite" aria-label="GitHub repository">
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>
       </a>
     </div>
@@ -266,26 +268,26 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
   <main class="main">
     <div class="top-bar">
       <button class="icon-btn menu-btn" id="menuBtn">☰</button>
-      <span class="title" id="chatTitle">新对话</span>
-      <button type="button" class="thinking-toggle" id="thinkingToggle" title="是否启用/显示模型思考过程（开：保留思考；关：Gemini 不思考、其他剥离）"><span class="sw"></span><span>思考</span></button>
-      <select id="modelSelect" title="选择模型"></select>
-      <button class="icon-btn" id="clearBtn" title="清空当前对话">🗑</button>
+      <span class="title" id="chatTitle">New chat</span>
+      <button type="button" class="thinking-toggle" id="thinkingToggle" data-i18n-title="thinking.toggle.title" title="Enable/show model thinking"><span class="sw"></span><span data-i18n="thinking.label">Thinking</span></button>
+      <select id="modelSelect" data-i18n-title="model.select.title" title="Select model"></select>
+      <button class="icon-btn" id="clearBtn" data-i18n-title="chat.clear.title" title="Clear current chat">🗑</button>
     </div>
 
     <div class="messages" id="messages"></div>
 
     <div class="composer-wrap">
-      <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn" title="滚到最新" aria-label="滚到最新内容">↓<span class="new-dot"></span></button>
+      <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn" data-i18n-title="scroll.bottom.title" data-i18n-aria="scroll.bottom.aria" title="Scroll to latest" aria-label="Scroll to latest">↓<span class="new-dot"></span></button>
       <div class="composer">
         <div class="attach-strip" id="attachStrip"></div>
-        <textarea id="input" rows="1" placeholder="输入消息，Shift+Enter 换行，Enter 发送。支持粘贴/拖拽图片和文件…"></textarea>
+        <textarea id="input" rows="1" data-i18n-placeholder="composer.input.placeholder" placeholder="Type a message. Shift+Enter for newline, Enter to send. Paste/drop images and files supported…"></textarea>
         <div class="composer-actions">
-          <button class="icon-btn" id="attachImageBtn" title="上传图片">🖼</button>
-          <button class="icon-btn" id="attachFileBtn" title="上传文件 (PDF/Word/TXT/代码)">📎</button>
+          <button class="icon-btn" id="attachImageBtn" data-i18n-title="attach.image.title" title="Upload image">🖼</button>
+          <button class="icon-btn" id="attachFileBtn" data-i18n-title="attach.file.title" title="Upload file (PDF/Word/TXT/code)">📎</button>
           <input type="file" id="fileInput" multiple style="display:none" />
           <span class="spacer"></span>
           <span class="hint" id="statusHint"></span>
-          <button class="send-btn" id="sendBtn" title="发送">➤</button>
+          <button class="send-btn" id="sendBtn" data-i18n-title="send.title" title="Send">➤</button>
         </div>
       </div>
     </div>
@@ -295,33 +297,33 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 <!-- Settings Modal -->
 <div class="modal-mask hide" id="settingsModal">
   <div class="modal">
-    <div class="modal-header"><h3>设置</h3><button class="icon-btn" id="closeSettings">✕</button></div>
+    <div class="modal-header"><h3 data-i18n="settings.title">Settings</h3><button class="icon-btn" id="closeSettings">✕</button></div>
     <div class="modal-body">
       <div class="tabs">
-        <div class="tab active" data-tab="providers">模型供应商</div>
-        <div class="tab" data-tab="general">通用</div>
-        <div class="tab" data-tab="about">说明</div>
+        <div class="tab active" data-tab="providers" data-i18n="settings.tab.providers">Providers</div>
+        <div class="tab" data-tab="general" data-i18n="settings.tab.general">General</div>
+        <div class="tab" data-tab="about" data-i18n="settings.tab.about">About</div>
       </div>
 
       <div class="tab-panel" data-panel="providers">
-        <div class="alert">⚠️ 所有 API Key 仅保存在你浏览器本地的 localStorage，请勿在公共电脑上使用。某些供应商（如 Anthropic、OpenAI）需要在浏览器端直接访问 API，下方已自动添加相应 header。本地模型（Ollama）需要在启动时设置 <code>OLLAMA_ORIGINS=*</code> 以允许跨域。</div>
+        <div class="alert" data-i18n-html="settings.providers.alert">⚠️ All API keys are saved only in your browser's localStorage — do not use on public computers. Some providers (e.g., Anthropic, OpenAI) require direct browser access; the corresponding headers are added automatically. For local models (Ollama), set <code>OLLAMA_ORIGINS=*</code> before launch to allow cross-origin requests.</div>
 
         <div class="provider-block">
-          <h4>🟢 OpenAI 兼容（含 DeepSeek / Moonshot / 硅基流动 / OpenRouter / LM Studio / vLLM 等）</h4>
-          <div class="form-row"><label>Base URL</label><input id="cfg_openai_base" placeholder="https://api.openai.com/v1" /></div>
-          <div class="form-row"><label>API Key</label><input id="cfg_openai_key" type="password" placeholder="sk-..." /></div>
+          <h4 data-i18n="providers.openai.title">🟢 OpenAI compatible (incl. DeepSeek / Moonshot / SiliconFlow / OpenRouter / LM Studio / vLLM)</h4>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_openai_base" placeholder="https://api.openai.com/v1" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_openai_key" type="password" placeholder="sk-..." /></div>
           <div class="form-row">
             <label class="model-label">
-              <span>模型列表（每行一个，可加注释 #）</span>
-              <button type="button" class="fetch-btn" data-fetch="openai">🔄 获取模型列表</button>
+              <span data-i18n="providers.modelList.withComment">Model list (one per line, # for comments)</span>
+              <button type="button" class="fetch-btn" data-fetch="openai" data-i18n="providers.fetch">🔄 Fetch model list</button>
             </label>
             <div class="model-picker" id="picker_openai" style="display:none">
               <div class="picker-header">
-                <input class="picker-filter" placeholder="搜索过滤…" />
+                <input class="picker-filter" data-i18n-placeholder="picker.filter.placeholder" placeholder="Search filter…" />
                 <span class="picker-count"></span>
-                <button type="button" class="btn ghost picker-toggle-all">全选/反选</button>
-                <button type="button" class="btn primary picker-apply">应用</button>
-                <button type="button" class="btn ghost picker-cancel">取消</button>
+                <button type="button" class="btn ghost picker-toggle-all" data-i18n="picker.toggleAll">Toggle all</button>
+                <button type="button" class="btn primary picker-apply" data-i18n="picker.apply">Apply</button>
+                <button type="button" class="btn ghost picker-cancel" data-i18n="picker.cancel">Cancel</button>
               </div>
               <div class="picker-list"></div>
             </div>
@@ -330,21 +332,21 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
         </div>
 
         <div class="provider-block">
-          <h4>🟣 Anthropic Claude</h4>
-          <div class="form-row"><label>Base URL</label><input id="cfg_claude_base" placeholder="https://api.anthropic.com/v1" /></div>
-          <div class="form-row"><label>API Key</label><input id="cfg_claude_key" type="password" placeholder="sk-ant-..." /></div>
+          <h4 data-i18n="providers.claude.title">🟣 Anthropic Claude</h4>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_claude_base" placeholder="https://api.anthropic.com/v1" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_claude_key" type="password" placeholder="sk-ant-..." /></div>
           <div class="form-row">
             <label class="model-label">
-              <span>模型列表（每行一个）</span>
-              <button type="button" class="fetch-btn" data-fetch="claude">🔄 获取模型列表</button>
+              <span data-i18n="providers.modelList">Model list (one per line)</span>
+              <button type="button" class="fetch-btn" data-fetch="claude" data-i18n="providers.fetch">🔄 Fetch model list</button>
             </label>
             <div class="model-picker" id="picker_claude" style="display:none">
               <div class="picker-header">
-                <input class="picker-filter" placeholder="搜索过滤…" />
+                <input class="picker-filter" data-i18n-placeholder="picker.filter.placeholder" placeholder="Search filter…" />
                 <span class="picker-count"></span>
-                <button type="button" class="btn ghost picker-toggle-all">全选/反选</button>
-                <button type="button" class="btn primary picker-apply">应用</button>
-                <button type="button" class="btn ghost picker-cancel">取消</button>
+                <button type="button" class="btn ghost picker-toggle-all" data-i18n="picker.toggleAll">Toggle all</button>
+                <button type="button" class="btn primary picker-apply" data-i18n="picker.apply">Apply</button>
+                <button type="button" class="btn ghost picker-cancel" data-i18n="picker.cancel">Cancel</button>
               </div>
               <div class="picker-list"></div>
             </div>
@@ -353,21 +355,21 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
         </div>
 
         <div class="provider-block">
-          <h4>🔵 Google Gemini</h4>
-          <div class="form-row"><label>Base URL</label><input id="cfg_gemini_base" placeholder="https://generativelanguage.googleapis.com/v1beta" /></div>
-          <div class="form-row"><label>API Key</label><input id="cfg_gemini_key" type="password" placeholder="AIza..." /></div>
+          <h4 data-i18n="providers.gemini.title">🔵 Google Gemini</h4>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_gemini_base" placeholder="https://generativelanguage.googleapis.com/v1beta" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKey">API Key</label><input id="cfg_gemini_key" type="password" placeholder="AIza..." /></div>
           <div class="form-row">
             <label class="model-label">
-              <span>模型列表（每行一个）</span>
-              <button type="button" class="fetch-btn" data-fetch="gemini">🔄 获取模型列表</button>
+              <span data-i18n="providers.modelList">Model list (one per line)</span>
+              <button type="button" class="fetch-btn" data-fetch="gemini" data-i18n="providers.fetch">🔄 Fetch model list</button>
             </label>
             <div class="model-picker" id="picker_gemini" style="display:none">
               <div class="picker-header">
-                <input class="picker-filter" placeholder="搜索过滤…" />
+                <input class="picker-filter" data-i18n-placeholder="picker.filter.placeholder" placeholder="Search filter…" />
                 <span class="picker-count"></span>
-                <button type="button" class="btn ghost picker-toggle-all">全选/反选</button>
-                <button type="button" class="btn primary picker-apply">应用</button>
-                <button type="button" class="btn ghost picker-cancel">取消</button>
+                <button type="button" class="btn ghost picker-toggle-all" data-i18n="picker.toggleAll">Toggle all</button>
+                <button type="button" class="btn primary picker-apply" data-i18n="picker.apply">Apply</button>
+                <button type="button" class="btn ghost picker-cancel" data-i18n="picker.cancel">Cancel</button>
               </div>
               <div class="picker-list"></div>
             </div>
@@ -376,29 +378,29 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
         </div>
 
         <div class="provider-block">
-          <h4>🟠 本地模型（Ollama / llama.cpp / LM Studio）</h4>
-          <div class="form-row"><label>API 协议</label>
+          <h4 data-i18n="providers.ollama.title">🟠 Local models (Ollama / llama.cpp / LM Studio)</h4>
+          <div class="form-row"><label data-i18n="ollama.protocol">API protocol</label>
             <select id="cfg_ollama_protocol">
-              <option value="auto">自动探测（推荐）</option>
-              <option value="ollama">Ollama 原生 (/api/chat)</option>
-              <option value="openai">OpenAI 兼容 (/v1/chat/completions，适用 llama.cpp / LM Studio / vLLM)</option>
+              <option value="auto" data-i18n="ollama.protocol.auto">Auto-detect (recommended)</option>
+              <option value="ollama" data-i18n="ollama.protocol.native">Ollama native (/api/chat)</option>
+              <option value="openai" data-i18n="ollama.protocol.openai">OpenAI compatible (/v1/chat/completions, for llama.cpp / LM Studio / vLLM)</option>
             </select>
-            <span class="hint">自动探测会先试 <code>/api/tags</code>，命中即用 Ollama 原生，否则走 OpenAI 兼容。</span>
+            <span class="hint" data-i18n-html="ollama.protocol.hint">Auto-detect tries <code>/api/tags</code> first — if found, uses Ollama native; otherwise falls back to OpenAI compatible.</span>
           </div>
-          <div class="form-row"><label>Base URL</label><input id="cfg_ollama_base" placeholder="Ollama→http://localhost:11434  ·  llama.cpp→http://localhost:8080  ·  LM Studio→http://localhost:1234" /></div>
-          <div class="form-row"><label>API Key（可留空）</label><input id="cfg_ollama_key" type="password" placeholder="可留空" /></div>
+          <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_ollama_base" placeholder="Ollama→http://localhost:11434  ·  llama.cpp→http://localhost:8080  ·  LM Studio→http://localhost:1234" /></div>
+          <div class="form-row"><label data-i18n="providers.apiKeyOptional">API Key (optional)</label><input id="cfg_ollama_key" type="password" data-i18n-placeholder="ollama.key.placeholder" placeholder="Optional" /></div>
           <div class="form-row">
             <label class="model-label">
-              <span>模型列表（每行一个）</span>
-              <button type="button" class="fetch-btn" data-fetch="ollama">🔄 获取模型列表</button>
+              <span data-i18n="providers.modelList">Model list (one per line)</span>
+              <button type="button" class="fetch-btn" data-fetch="ollama" data-i18n="providers.fetch">🔄 Fetch model list</button>
             </label>
             <div class="model-picker" id="picker_ollama" style="display:none">
               <div class="picker-header">
-                <input class="picker-filter" placeholder="搜索过滤…" />
+                <input class="picker-filter" data-i18n-placeholder="picker.filter.placeholder" placeholder="Search filter…" />
                 <span class="picker-count"></span>
-                <button type="button" class="btn ghost picker-toggle-all">全选/反选</button>
-                <button type="button" class="btn primary picker-apply">应用</button>
-                <button type="button" class="btn ghost picker-cancel">取消</button>
+                <button type="button" class="btn ghost picker-toggle-all" data-i18n="picker.toggleAll">Toggle all</button>
+                <button type="button" class="btn primary picker-apply" data-i18n="picker.apply">Apply</button>
+                <button type="button" class="btn ghost picker-cancel" data-i18n="picker.cancel">Cancel</button>
               </div>
               <div class="picker-list"></div>
             </div>
@@ -409,37 +411,40 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 
       <div class="tab-panel" data-panel="general" style="display:none">
         <div class="row-2">
-          <div class="form-row"><label>用户名（显示）</label><input id="cfg_user_name" placeholder="我 / Hen / 张三" /><span class="hint">显示在你这一侧的头像和消息上方。头像自动取首字。</span></div>
-          <div class="form-row"><label>AI 名称（显示）</label><input id="cfg_ai_name" placeholder="AI / Claude / GPT" /><span class="hint">显示在助手一侧的头像和消息上方。</span></div>
+          <div class="form-row"><label data-i18n="general.userName.label">User name (display)</label><input id="cfg_user_name" data-i18n-placeholder="general.userName.placeholder" placeholder="Me / Hen / Alex" /><span class="hint" data-i18n="general.userName.hint">Shown above your avatar and messages. The avatar uses the first character.</span></div>
+          <div class="form-row"><label data-i18n="general.aiName.label">AI name (display)</label><input id="cfg_ai_name" data-i18n-placeholder="general.aiName.placeholder" placeholder="AI / Claude / GPT" /><span class="hint" data-i18n="general.aiName.hint">Shown above the assistant's avatar and messages.</span></div>
         </div>
-        <div class="form-row"><label>系统提示词（默认）</label><textarea id="cfg_system" rows="4" placeholder="You are a helpful assistant."></textarea></div>
+        <div class="form-row"><label data-i18n="general.system.label">System prompt (default)</label><textarea id="cfg_system" rows="4" placeholder="You are a helpful assistant."></textarea></div>
         <div class="row-2">
-          <div class="form-row"><label>Temperature</label><input id="cfg_temp" type="number" min="0" max="2" step="0.1" value="0.7" /></div>
-          <div class="form-row"><label>最大输出 tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" placeholder="留空使用模型默认" /></div>
+          <div class="form-row"><label data-i18n="general.temperature.label">Temperature</label><input id="cfg_temp" type="number" min="0" max="2" step="0.1" value="0.7" /></div>
+          <div class="form-row"><label data-i18n="general.maxTokens.label">Max output tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" data-i18n-placeholder="general.maxTokens.placeholder" placeholder="Leave empty to use model default" /></div>
         </div>
-        <div class="form-row"><label>历史消息保留条数（控制上下文长度）</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" /></div>
-        <div class="form-row"><label><input id="cfg_show_thinking" type="checkbox" style="width:auto;margin-right:6px" />启用并显示模型思考过程</label><span class="hint">关闭后：折叠面板不显示；对 Gemini 2.5 会请求 <code>thinkingBudget:0</code> 节省 token；DeepSeek-R1 的 <code>&lt;think&gt;</code> 段落仍会被剥离不外露。</span></div>
+        <div class="form-row"><label data-i18n="general.historyN.label">History messages kept (context length)</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" /></div>
+        <div class="form-row"><label><input id="cfg_show_thinking" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.showThinking.label">Enable and show model thinking</span></label><span class="hint" data-i18n-html="general.showThinking.hint">When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.</span></div>
       </div>
 
       <div class="tab-panel" data-panel="about" style="display:none">
-        <p style="font-size:13px;line-height:1.7;color:var(--fg-2)">
-          <b style="color:var(--fg)">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br>
-          <b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br>
-          <b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入"设置"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br>
-          <b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br>
-          <b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl+N 新建对话。
+        <p style="font-size:13px;line-height:1.7;color:var(--fg-2)" data-i18n-html="about.body">
+          <b style="color:var(--fg)">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br>
+          <b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br>
+          <b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to "Settings" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br>
+          <b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br>
+          <b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl+N for new chat.<br><br>
+          <b>Project</b>: <a href="https://github.com/lfbear/chatbox-lite" target="_blank" rel="noopener noreferrer">github.com/lfbear/chatbox-lite</a><br>
+          <b>Author</b>: <a href="https://github.com/lfbear" target="_blank" rel="noopener noreferrer">lfbear (小飞熊)</a><br><br>
+          <i style="color:var(--fg-2)">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>
         </p>
       </div>
 
     </div>
     <div class="modal-footer">
-      <button class="btn ghost" id="cancelSettings">取消</button>
-      <button class="btn primary" id="saveSettings">保存</button>
+      <button class="btn ghost" id="cancelSettings" data-i18n="modal.cancel">Cancel</button>
+      <button class="btn primary" id="saveSettings" data-i18n="modal.save">Save</button>
     </div>
   </div>
 </div>
 
-<div class="drag-overlay hide" id="dragOverlay">🗎 拖放文件以添加到对话</div>
+<div class="drag-overlay hide" id="dragOverlay" data-i18n="drag.overlay">🗎 Drop files to add to the conversation</div>
 
 <input type="file" id="importFileInput" accept="application/json" style="display:none" />
 
@@ -464,8 +469,17 @@ window.__pdfjsLib = pdfjsLib;
    ============================================================ */
 
 const LS_KEY = "chatbox_lite_v1";
+const detectLang = () => {
+  try{
+    const saved = localStorage.getItem("chatbox_lite_lang");
+    if(saved==="en"||saved==="zh") return saved;
+  }catch{}
+  const n = (navigator.language||"").toLowerCase();
+  return n.startsWith("zh") ? "zh" : "en";
+};
 const DEFAULT_STATE = {
   theme: "light",
+  lang: detectLang(),
   chats: [],            // [{id,title,model,messages:[{role,content,attachments,time}],systemPrompt,createdAt}]
   activeChatId: null,
   config: {
@@ -480,11 +494,276 @@ const DEFAULT_STATE = {
     maxTokens:"",
     historyN:40,
     showThinking:true,
-    userName:"我",
+    userName:"",
     aiName:"AI"
   },
   lastModel:""
 };
+
+/* ------------------------- i18n ------------------------- */
+const I18N = {
+  en: {
+    "app.title":"Chatbox Lite · Multi-Model Chat",
+    "lang.switch.title":"Language / 语言",
+    "theme.toggle.title":"Toggle theme",
+    "sidebar.newChat":"＋ New chat",
+    "sidebar.settings":"⚙ Settings",
+    "sidebar.export":"⬇ Export",
+    "sidebar.import":"⬆ Import",
+    "github.title":"GitHub · lfbear/chatbox-lite",
+    "github.aria":"GitHub repository",
+    "chat.untitled":"Untitled",
+    "chat.new.default":"New chat",
+    "chat.action.rename":"Rename",
+    "chat.action.delete":"Delete",
+    "chat.clear.title":"Clear current chat",
+    "model.select.title":"Select model",
+    "model.select.empty":"(Configure models in Settings)",
+    "thinking.label":"Thinking",
+    "thinking.toggle.title":"Enable/show model thinking (on: keep thinking; off: Gemini won't think, others stripped)",
+    "thinking.toggle.on":"Thinking · on",
+    "thinking.toggle.off":"Thinking · off",
+    "thinking.streaming":"Thinking…",
+    "thinking.streaming.hidden":"Thinking… (content hidden)",
+    "thinking.done":"Thinking",
+    "thinking.done.hidden":"Thinking · hidden",
+    "scroll.bottom.title":"Scroll to latest",
+    "scroll.bottom.aria":"Scroll to latest content",
+    "composer.input.placeholder":"Type a message. Shift+Enter for newline, Enter to send. Paste/drop images and files supported…",
+    "attach.image.title":"Upload image",
+    "attach.file.title":"Upload file (PDF/Word/TXT/code)",
+    "send.title":"Send",
+    "stop.title":"Stop",
+    "status.connecting":"Connecting…",
+    "status.generating":"Generating…",
+    "settings.title":"Settings",
+    "settings.tab.providers":"Providers",
+    "settings.tab.general":"General",
+    "settings.tab.about":"About",
+    "settings.providers.alert":"⚠️ All API keys are saved only in your browser's localStorage — do not use on public computers. Some providers (e.g., Anthropic, OpenAI) require direct browser access; the corresponding headers are added automatically. For local models (Ollama), set <code>OLLAMA_ORIGINS=*</code> before launch to allow cross-origin requests.",
+    "providers.openai.title":"🟢 OpenAI compatible (incl. DeepSeek / Moonshot / SiliconFlow / OpenRouter / LM Studio / vLLM)",
+    "providers.claude.title":"🟣 Anthropic Claude",
+    "providers.gemini.title":"🔵 Google Gemini",
+    "providers.ollama.title":"🟠 Local models (Ollama / llama.cpp / LM Studio)",
+    "providers.baseUrl":"Base URL",
+    "providers.apiKey":"API Key",
+    "providers.apiKeyOptional":"API Key (optional)",
+    "providers.modelList":"Model list (one per line)",
+    "providers.modelList.withComment":"Model list (one per line, # for comments)",
+    "providers.fetch":"🔄 Fetch model list",
+    "providers.fetching":"⏳ Fetching…",
+    "picker.filter.placeholder":"Search filter…",
+    "picker.toggleAll":"Toggle all",
+    "picker.apply":"Apply",
+    "picker.cancel":"Cancel",
+    "picker.count":"{0} total · {1} selected",
+    "picker.empty":"No models returned",
+    "ollama.protocol":"API protocol",
+    "ollama.protocol.auto":"Auto-detect (recommended)",
+    "ollama.protocol.native":"Ollama native (/api/chat)",
+    "ollama.protocol.openai":"OpenAI compatible (/v1/chat/completions, for llama.cpp / LM Studio / vLLM)",
+    "ollama.protocol.hint":"Auto-detect tries <code>/api/tags</code> first — if found, uses Ollama native; otherwise falls back to OpenAI compatible.",
+    "ollama.key.placeholder":"Optional",
+    "general.userName.label":"User name (display)",
+    "general.userName.placeholder":"Me / Hen / Alex",
+    "general.userName.hint":"Shown above your avatar and messages. The avatar uses the first character.",
+    "general.aiName.label":"AI name (display)",
+    "general.aiName.placeholder":"AI / Claude / GPT",
+    "general.aiName.hint":"Shown above the assistant's avatar and messages.",
+    "general.system.label":"System prompt (default)",
+    "general.temperature.label":"Temperature",
+    "general.maxTokens.label":"Max output tokens",
+    "general.maxTokens.placeholder":"Leave empty to use model default",
+    "general.historyN.label":"History messages kept (context length)",
+    "general.showThinking.label":"Enable and show model thinking",
+    "general.showThinking.hint":"When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.",
+    "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br><b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br><b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to \"Settings\" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br><b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br><b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl+N for new chat.<br><br><b>Project</b>: <a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>Author</b>: <a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>",
+    "modal.cancel":"Cancel",
+    "modal.save":"Save",
+    "drag.overlay":"🗎 Drop files to add to the conversation",
+    "empty.title":"Start a conversation",
+    "empty.subtitle":"Pick a model and type below. Paste/drop images and files supported.",
+    "empty.prompt.1.label":"Explain a concept",
+    "empty.prompt.1.text":"Explain the core idea of the Transformer in three sentences.",
+    "empty.prompt.2.label":"Write code",
+    "empty.prompt.2.text":"Write a Python decorator that implements function caching (with LRU), and include tests.",
+    "empty.prompt.3.label":"Translate / polish",
+    "empty.prompt.3.text":"Translate the following paragraph into natural English:\n\n(paste your text)",
+    "empty.prompt.4.label":"Plan an itinerary",
+    "empty.prompt.4.text":"Give me a compact 5-day itinerary for Tokyo.",
+    "msg.copy":"Copy",
+    "msg.copied":"Copied",
+    "msg.regenerate":"🔄 Regenerate",
+    "msg.regenerate.title":"Regenerate with the currently selected model",
+    "msg.edit":"✏ Edit & resend",
+    "msg.edit.title":"Put this message back into the input box (subsequent messages will be removed)",
+    "msg.role.system":"System",
+    "waiting.aria":"Waiting for response",
+    "confirm.deleteChat":"Delete this chat?",
+    "prompt.renameChat":"New name:",
+    "alert.modelRequired":"Please select a model first.",
+    "alert.modelRequiredSend":"Please configure at least one model in Settings.",
+    "confirm.clearChat":"Clear all messages in the current chat?",
+    "confirm.import":"Merge or overwrite current data? OK to overwrite, Cancel to merge chats.",
+    "alert.importFailed":"Import failed: ",
+    "error.invalidFile":"Invalid file",
+    "alert.fetchFailed":"Failed to fetch model list: {0}\n\nCheck your Base URL, API Key, and the target service's CORS setup (Ollama needs OLLAMA_ORIGINS=*).",
+    "confirm.emptyPicker":"No models selected. The current model list will be cleared. Continue?",
+    "msg.aborted":"_[Aborted]_",
+    "msg.error.label":"Error",
+    "msg.error.suffix":"Please check the API Key, Base URL, model name, network, and CORS settings.",
+    "alert.baseUrlRequired":"Please fill in the Base URL first.",
+    "attach.label":"[Attachment: {0}]",
+    "userName.default":"Me",
+    "aiName.default":"AI",
+    "vendor.local":"Local"
+  },
+  zh: {
+    "app.title":"Chatbox Lite · 多模型对话",
+    "lang.switch.title":"Language / 语言",
+    "theme.toggle.title":"切换主题",
+    "sidebar.newChat":"＋ 新建对话",
+    "sidebar.settings":"⚙ 设置",
+    "sidebar.export":"⬇ 导出",
+    "sidebar.import":"⬆ 导入",
+    "github.title":"GitHub · lfbear/chatbox-lite",
+    "github.aria":"GitHub 仓库",
+    "chat.untitled":"未命名",
+    "chat.new.default":"新对话",
+    "chat.action.rename":"重命名",
+    "chat.action.delete":"删除",
+    "chat.clear.title":"清空当前对话",
+    "model.select.title":"选择模型",
+    "model.select.empty":"(请在设置中配置模型)",
+    "thinking.label":"思考",
+    "thinking.toggle.title":"是否启用/显示模型思考过程（开：保留思考；关：Gemini 不思考、其他剥离）",
+    "thinking.toggle.on":"思考·已开启",
+    "thinking.toggle.off":"思考·已关闭",
+    "thinking.streaming":"思考中…",
+    "thinking.streaming.hidden":"思考中…（内容已隐藏）",
+    "thinking.done":"思考过程",
+    "thinking.done.hidden":"思考过程·已隐藏",
+    "scroll.bottom.title":"滚到最新",
+    "scroll.bottom.aria":"滚到最新内容",
+    "composer.input.placeholder":"输入消息，Shift+Enter 换行，Enter 发送。支持粘贴/拖拽图片和文件…",
+    "attach.image.title":"上传图片",
+    "attach.file.title":"上传文件 (PDF/Word/TXT/代码)",
+    "send.title":"发送",
+    "stop.title":"停止",
+    "status.connecting":"连接中…",
+    "status.generating":"生成中…",
+    "settings.title":"设置",
+    "settings.tab.providers":"模型供应商",
+    "settings.tab.general":"通用",
+    "settings.tab.about":"说明",
+    "settings.providers.alert":"⚠️ 所有 API Key 仅保存在你浏览器本地的 localStorage，请勿在公共电脑上使用。某些供应商（如 Anthropic、OpenAI）需要在浏览器端直接访问 API，下方已自动添加相应 header。本地模型（Ollama）需要在启动时设置 <code>OLLAMA_ORIGINS=*</code> 以允许跨域。",
+    "providers.openai.title":"🟢 OpenAI 兼容（含 DeepSeek / Moonshot / 硅基流动 / OpenRouter / LM Studio / vLLM 等）",
+    "providers.claude.title":"🟣 Anthropic Claude",
+    "providers.gemini.title":"🔵 Google Gemini",
+    "providers.ollama.title":"🟠 本地模型（Ollama / llama.cpp / LM Studio）",
+    "providers.baseUrl":"Base URL",
+    "providers.apiKey":"API Key",
+    "providers.apiKeyOptional":"API Key（可留空）",
+    "providers.modelList":"模型列表（每行一个）",
+    "providers.modelList.withComment":"模型列表（每行一个，可加注释 #）",
+    "providers.fetch":"🔄 获取模型列表",
+    "providers.fetching":"⏳ 拉取中…",
+    "picker.filter.placeholder":"搜索过滤…",
+    "picker.toggleAll":"全选/反选",
+    "picker.apply":"应用",
+    "picker.cancel":"取消",
+    "picker.count":"共 {0} 个 · 已选 {1}",
+    "picker.empty":"未返回任何模型",
+    "ollama.protocol":"API 协议",
+    "ollama.protocol.auto":"自动探测（推荐）",
+    "ollama.protocol.native":"Ollama 原生 (/api/chat)",
+    "ollama.protocol.openai":"OpenAI 兼容 (/v1/chat/completions，适用 llama.cpp / LM Studio / vLLM)",
+    "ollama.protocol.hint":"自动探测会先试 <code>/api/tags</code>，命中即用 Ollama 原生，否则走 OpenAI 兼容。",
+    "ollama.key.placeholder":"可留空",
+    "general.userName.label":"用户名（显示）",
+    "general.userName.placeholder":"我 / Hen / 张三",
+    "general.userName.hint":"显示在你这一侧的头像和消息上方。头像自动取首字。",
+    "general.aiName.label":"AI 名称（显示）",
+    "general.aiName.placeholder":"AI / Claude / GPT",
+    "general.aiName.hint":"显示在助手一侧的头像和消息上方。",
+    "general.system.label":"系统提示词（默认）",
+    "general.temperature.label":"Temperature",
+    "general.maxTokens.label":"最大输出 tokens",
+    "general.maxTokens.placeholder":"留空使用模型默认",
+    "general.historyN.label":"历史消息保留条数（控制上下文长度）",
+    "general.showThinking.label":"启用并显示模型思考过程",
+    "general.showThinking.hint":"关闭后：折叠面板不显示；对 Gemini 2.5 会请求 <code>thinkingBudget:0</code> 节省 token；DeepSeek-R1 的 <code>&lt;think&gt;</code> 段落仍会被剥离不外露。",
+    "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br><b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br><b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入\"设置\"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br><b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br><b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl+N 新建对话。<br><br><b>项目地址</b>：<a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>作者</b>：<a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. 这个项目没有一行代码是作者敲的，全是 Claude 写的——我只是那个在旁边指手画脚的人。🫠</i>",
+    "modal.cancel":"取消",
+    "modal.save":"保存",
+    "drag.overlay":"🗎 拖放文件以添加到对话",
+    "empty.title":"开始对话",
+    "empty.subtitle":"选择模型，在下方输入消息。支持粘贴/拖拽图片和文件。",
+    "empty.prompt.1.label":"解释一个概念",
+    "empty.prompt.1.text":"用三句话讲清楚 Transformer 的核心思想",
+    "empty.prompt.2.label":"写代码",
+    "empty.prompt.2.text":"帮我写一个 Python 装饰器实现函数缓存（含 LRU），并写测试",
+    "empty.prompt.3.label":"翻译润色",
+    "empty.prompt.3.text":"翻译以下段落为地道英文：\n\n（粘贴原文）",
+    "empty.prompt.4.label":"行程规划",
+    "empty.prompt.4.text":"给我一份去东京 5 天的紧凑行程",
+    "msg.copy":"复制",
+    "msg.copied":"已复制",
+    "msg.regenerate":"🔄 重新生成",
+    "msg.regenerate.title":"用当前选中的模型重新作答",
+    "msg.edit":"✏ 编辑重发",
+    "msg.edit.title":"把这条消息放回输入框（之后的对话将被删除）",
+    "msg.role.system":"系统",
+    "waiting.aria":"等待响应",
+    "confirm.deleteChat":"删除此对话？",
+    "prompt.renameChat":"新名称：",
+    "alert.modelRequired":"请先选择模型",
+    "alert.modelRequiredSend":"请先在设置中配置至少一个模型。",
+    "confirm.clearChat":"清空当前对话的所有消息？",
+    "confirm.import":"将合并/覆盖当前数据？点击确定覆盖，取消则合并对话。",
+    "alert.importFailed":"导入失败：",
+    "error.invalidFile":"无效文件",
+    "alert.fetchFailed":"获取模型列表失败：{0}\n\n请检查 Base URL、API Key 是否正确，以及目标服务的 CORS 设置（Ollama 需 OLLAMA_ORIGINS=*）。",
+    "confirm.emptyPicker":"没有勾选任何模型，将清空当前模型列表，确定继续？",
+    "msg.aborted":"_[已中止]_",
+    "msg.error.label":"错误",
+    "msg.error.suffix":"请检查 API Key、Base URL、模型名、网络以及 CORS 设置。",
+    "alert.baseUrlRequired":"请先填写 Base URL",
+    "attach.label":"【附件: {0}】",
+    "userName.default":"我",
+    "aiName.default":"AI",
+    "vendor.local":"本地"
+  }
+};
+function curLang(){ return (state && state.lang) || detectLang(); }
+function t(key, ...args){
+  const lang = curLang();
+  const tpl = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+  if(!args.length) return tpl;
+  return args.reduce((s,v,i)=>s.replace(new RegExp("\\{"+i+"\\}","g"), String(v)), tpl);
+}
+function applyI18n(){
+  document.documentElement.lang = curLang()==="en" ? "en" : "zh-CN";
+  document.title = t("app.title");
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-html]").forEach(el=>{ el.innerHTML = t(el.dataset.i18nHtml); });
+  document.querySelectorAll("[data-i18n-title]").forEach(el=>{ el.title = t(el.dataset.i18nTitle); });
+  document.querySelectorAll("[data-i18n-placeholder]").forEach(el=>{ el.placeholder = t(el.dataset.i18nPlaceholder); });
+  document.querySelectorAll("[data-i18n-aria]").forEach(el=>{ el.setAttribute("aria-label", t(el.dataset.i18nAria)); });
+  const lb = document.getElementById("langBtn");
+  if(lb) lb.textContent = curLang()==="en" ? "中" : "EN";
+}
+function setLang(lang){
+  state.lang = (lang==="en") ? "en" : "zh";
+  try{ localStorage.setItem("chatbox_lite_lang", state.lang); }catch{}
+  saveState();
+  applyI18n();
+  populateModelSelect();
+  updateThinkingToggle();
+  renderChatList();
+  renderMessages();
+  updateTopBar();
+}
 
 let state = loadState();
 let pendingAttachments = []; // {kind:'image'|'file', name, mime, dataUrl?, text?}
@@ -580,7 +859,7 @@ function currentChat(){
 function newChat(){
   const id = uid();
   const chat = {
-    id, title:"新对话", model: state.lastModel || "",
+    id, title:t("chat.new.default"), model: state.lastModel || "",
     systemPrompt: state.general.systemPrompt,
     messages: [], createdAt: Date.now()
   };
@@ -590,14 +869,14 @@ function newChat(){
   document.getElementById("input").focus();
 }
 function deleteChat(id){
-  if(!confirm("删除此对话？")) return;
+  if(!confirm(t("confirm.deleteChat"))) return;
   state.chats = state.chats.filter(c=>c.id!==id);
   if(state.activeChatId===id) state.activeChatId = state.chats[0]?.id || null;
   if(!state.activeChatId) newChat(); else { saveState(); renderChatList(); renderMessages(); updateTopBar(); }
 }
 function renameChat(id){
   const c = state.chats.find(x=>x.id===id); if(!c) return;
-  const t = prompt("新名称：", c.title); if(t!=null){ c.title = t.trim()||c.title; saveState(); renderChatList(); updateTopBar(); }
+  const nv = prompt(t("prompt.renameChat"), c.title); if(nv!=null){ c.title = nv.trim()||c.title; saveState(); renderChatList(); updateTopBar(); }
 }
 function switchChat(id){
   state.activeChatId = id; saveState(); renderChatList(); renderMessages(); updateTopBar();
@@ -627,7 +906,7 @@ function openaiVendorLabel(base){
     const u = new URL(base);
     // localhost / 内网 IP：直接给个"本地"类标记
     if(/^(localhost|127\.|0\.0\.0\.0|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(u.hostname)){
-      return `本地:${u.port||u.hostname}`;
+      return `${t("vendor.local")}:${u.port||u.hostname}`;
     }
     let h = u.hostname.toLowerCase();
     // 去掉常见前缀
@@ -648,7 +927,7 @@ function getAllModels(){
   parseModelLines(cfg.openai.models).forEach(m=>list.push({id:`openai::${m}`, provider:"openai", model:m, label:`${openaiLabel} · ${m}`}));
   parseModelLines(cfg.claude.models).forEach(m=>list.push({id:`claude::${m}`, provider:"claude", model:m, label:`Claude · ${m}`}));
   parseModelLines(cfg.gemini.models).forEach(m=>list.push({id:`gemini::${m}`, provider:"gemini", model:m, label:`Gemini · ${m}`}));
-  parseModelLines(cfg.ollama.models).forEach(m=>list.push({id:`ollama::${m}`, provider:"ollama", model:m, label:`本地 · ${m}`}));
+  parseModelLines(cfg.ollama.models).forEach(m=>list.push({id:`ollama::${m}`, provider:"ollama", model:m, label:`${t("vendor.local")} · ${m}`}));
   return list;
 }
 function populateModelSelect(){
@@ -656,7 +935,7 @@ function populateModelSelect(){
   const models = getAllModels();
   sel.innerHTML = "";
   if(!models.length){
-    const o = document.createElement("option"); o.textContent="(请在设置中配置模型)"; o.value=""; sel.appendChild(o); return;
+    const o = document.createElement("option"); o.textContent=t("model.select.empty"); o.value=""; sel.appendChild(o); return;
   }
   for(const m of models){
     const o = document.createElement("option"); o.value=m.id; o.textContent=m.label; sel.appendChild(o);
@@ -678,10 +957,10 @@ function renderChatList(){
     div.className = "chat-item"+(c.id===state.activeChatId?" active":"");
     div.innerHTML = `
       <span>💬</span>
-      <span class="title">${escapeHtml(c.title||"未命名")}</span>
+      <span class="title">${escapeHtml(c.title||t("chat.untitled"))}</span>
       <span class="actions">
-        <button class="icon-btn" data-act="rename" title="重命名">✎</button>
-        <button class="icon-btn" data-act="delete" title="删除">🗑</button>
+        <button class="icon-btn" data-act="rename" title="${escapeHtml(t("chat.action.rename"))}">✎</button>
+        <button class="icon-btn" data-act="delete" title="${escapeHtml(t("chat.action.delete"))}">🗑</button>
       </span>`;
     div.addEventListener("click",(e)=>{
       const act = e.target.closest("button")?.dataset.act;
@@ -695,7 +974,7 @@ function renderChatList(){
 
 function updateTopBar(){
   const c = currentChat();
-  document.getElementById("chatTitle").textContent = c?.title || "新对话";
+  document.getElementById("chatTitle").textContent = c?.title || t("chat.new.default");
 }
 
 function renderMessages(){
@@ -703,15 +982,13 @@ function renderMessages(){
   const chat = currentChat();
   box.innerHTML = "";
   if(!chat || chat.messages.length===0){
+    const mkBtn = (n)=>`<button data-p="${escapeHtml(t("empty.prompt."+n+".text"))}">${escapeHtml(t("empty.prompt."+n+".label"))}</button>`;
     box.innerHTML = `
       <div class="empty-state">
-        <h2>开始对话</h2>
-        <p>选择模型，在下方输入消息。支持粘贴/拖拽图片和文件。</p>
+        <h2>${escapeHtml(t("empty.title"))}</h2>
+        <p>${escapeHtml(t("empty.subtitle"))}</p>
         <div class="prompts">
-          <button data-p="用三句话讲清楚 Transformer 的核心思想">解释一个概念</button>
-          <button data-p="帮我写一个 Python 装饰器实现函数缓存（含 LRU），并写测试">写代码</button>
-          <button data-p="翻译以下段落为地道英文：\n\n（粘贴原文）">翻译润色</button>
-          <button data-p="给我一份去东京 5 天的紧凑行程">行程规划</button>
+          ${mkBtn(1)}${mkBtn(2)}${mkBtn(3)}${mkBtn(4)}
         </div>
       </div>`;
     box.querySelectorAll("[data-p]").forEach(b=>b.addEventListener("click",()=>{
@@ -742,21 +1019,21 @@ function deriveAvatarText(name){
 }
 function renderMessageEl(m, idx){
   const div = document.createElement("div"); div.className = "msg "+m.role;
-  const userName = state.general.userName || "我";
-  const aiName = state.general.aiName || "AI";
+  const userName = state.general.userName || t("userName.default");
+  const aiName = state.general.aiName || t("aiName.default");
   const avatar = m.role==="user" ? deriveAvatarText(userName)
                : m.role==="assistant" ? deriveAvatarText(aiName)
                : "S";
   const roleLabel = m.role==="user" ? userName
                   : m.role==="assistant" ? aiName
-                  : "系统";
+                  : t("msg.role.system");
   const html = m.role==="user"
     ? `<div class="content"></div>`
     : `<div class="content"></div>`;
   div.innerHTML = `
     <div class="avatar">${escapeHtml(avatar)}</div>
     <div class="body">
-      <div class="role">${escapeHtml(roleLabel)} <span class="copy" data-copy>复制</span></div>
+      <div class="role">${escapeHtml(roleLabel)} <span class="copy" data-copy>${escapeHtml(t("msg.copy"))}</span></div>
       <div class="thinking-slot"></div>
       ${html}
       <div class="attachments"></div>
@@ -767,9 +1044,9 @@ function renderMessageEl(m, idx){
     const slot = div.querySelector(".thinking-slot");
     const dur = m.reasoningMs ? ` · ${(m.reasoningMs/1000).toFixed(1)}s` : "";
     const showContent = state.general.showThinking && m.reasoning;
-    const label = showContent ? `思考过程${dur}` : `思考过程·已隐藏${dur}`;
+    const label = (showContent ? t("thinking.done") : t("thinking.done.hidden")) + dur;
     const det = document.createElement("details"); det.className="thinking-panel";
-    det.innerHTML = `<summary><span class="dot"></span><span class="label">${label}</span></summary><div class="thinking-content"></div>`;
+    det.innerHTML = `<summary><span class="dot"></span><span class="label">${escapeHtml(label)}</span></summary><div class="thinking-content"></div>`;
     if(showContent) det.querySelector(".thinking-content").textContent = m.reasoning;
     slot.appendChild(det);
   }
@@ -785,7 +1062,7 @@ function renderMessageEl(m, idx){
       renderMathIn(contentEl);
     }else if(!m.thought && !m.reasoning){
       // 等待首个 token：显示三点跳动占位
-      contentEl.innerHTML = '<span class="typing-dots" aria-label="等待响应"><span></span><span></span><span></span></span>';
+      contentEl.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(t("waiting.aria"))}"><span></span><span></span><span></span></span>`;
     }
   }
   // attachments
@@ -807,15 +1084,15 @@ function renderMessageEl(m, idx){
   const roleBar = div.querySelector(".role");
   if(m.role === "assistant" && idx != null){
     const btn = document.createElement("span");
-    btn.className = "act"; btn.textContent = "🔄 重新生成";
-    btn.title = "用当前选中的模型重新作答";
+    btn.className = "act"; btn.textContent = t("msg.regenerate");
+    btn.title = t("msg.regenerate.title");
     btn.addEventListener("click",(e)=>{ e.stopPropagation(); regenerateAssistant(idx); });
     roleBar.appendChild(btn);
   }
   if(m.role === "user" && idx != null){
     const btn = document.createElement("span");
-    btn.className = "act"; btn.textContent = "✏ 编辑重发";
-    btn.title = "把这条消息放回输入框（之后的对话将被删除）";
+    btn.className = "act"; btn.textContent = t("msg.edit");
+    btn.title = t("msg.edit.title");
     btn.addEventListener("click",(e)=>{ e.stopPropagation(); editUserMessage(idx); });
     roleBar.appendChild(btn);
   }
@@ -828,7 +1105,7 @@ async function regenerateAssistant(idx){
   // 删掉该 assistant 消息及之后所有消息（通常之后没有）
   chat.messages = chat.messages.slice(0, idx);
   const sel = document.getElementById("modelSelect").value;
-  if(!sel){ alert("请先选择模型"); return; }
+  if(!sel){ alert(t("alert.modelRequired")); return; }
   chat.model = sel; state.lastModel = sel;
   const aiMsg = { role:"assistant", content:"", reasoning:"", reasoningMs:0, thought:false, time:Date.now() };
   chat.messages.push(aiMsg);
@@ -855,8 +1132,8 @@ function enhanceCodeBlocks(root){
     try{ hljs.highlightElement(code); }catch{}
     const pre = code.parentElement;
     if(pre.querySelector(".copy-code")) return;
-    const btn = document.createElement("button"); btn.className="copy-code"; btn.textContent="复制";
-    btn.addEventListener("click",(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(code.textContent); btn.textContent="已复制"; setTimeout(()=>btn.textContent="复制",1200); });
+    const btn = document.createElement("button"); btn.className="copy-code"; btn.textContent=t("msg.copy");
+    btn.addEventListener("click",(e)=>{ e.stopPropagation(); navigator.clipboard.writeText(code.textContent); btn.textContent=t("msg.copied"); setTimeout(()=>btn.textContent=t("msg.copy"),1200); });
     pre.appendChild(btn);
   });
 }
@@ -917,7 +1194,7 @@ async function handleFiles(files){
         }else{
           text = await file.text();
         }
-      }catch(e){ text = "[读取文件失败: "+e.message+"]"; }
+      }catch(e){ text = "["+ (curLang()==="en"?"Failed to read file":"读取文件失败") +": "+e.message+"]"; }
       pendingAttachments.push({kind:"file", name:file.name, mime:file.type||"text/plain", text});
     }
   }
@@ -949,7 +1226,7 @@ async function sendMessage(){
   if(!chat){ newChat(); chat = currentChat(); }
 
   const sel = document.getElementById("modelSelect").value;
-  if(!sel){ alert("请先在设置中配置至少一个模型。"); return; }
+  if(!sel){ alert(t("alert.modelRequiredSend")); return; }
   chat.model = sel; state.lastModel = sel;
 
   const userMsg = {
@@ -962,8 +1239,10 @@ async function sendMessage(){
   ta.value = ""; autoresize(ta);
 
   // auto title
-  if(chat.messages.filter(m=>m.role==="user").length===1 && (chat.title==="新对话" || !chat.title)){
-    chat.title = (text || userMsg.attachments[0]?.name || "新对话").slice(0,30);
+  const defaultTitleZh = "新对话";
+  const defaultTitleEn = "New chat";
+  if(chat.messages.filter(m=>m.role==="user").length===1 && (chat.title===defaultTitleZh || chat.title===defaultTitleEn || !chat.title)){
+    chat.title = (text || userMsg.attachments[0]?.name || t("chat.new.default")).slice(0,30);
   }
 
   const aiMsg = { role:"assistant", content:"", reasoning:"", reasoningMs:0, thought:false, time:Date.now() };
@@ -1050,7 +1329,7 @@ async function streamResponse(chat, aiMsg, modelId){
   const [provider, model] = modelId.split("::");
   const cfg = state.config[provider];
   const ctrl = new AbortController(); currentController = ctrl;
-  setSending(true, "连接中…");
+  setSending(true, t("status.connecting"));
 
   let reasoningStart = 0;
   let inReasoning = false;
@@ -1059,7 +1338,7 @@ async function streamResponse(chat, aiMsg, modelId){
   const markFirstChunk = ()=>{
     if(firstChunkSeen) return;
     firstChunkSeen = true;
-    setSending(true, "生成中…");
+    setSending(true, t("status.generating"));
   };
 
   const refresh = ()=>{
@@ -1073,8 +1352,8 @@ async function streamResponse(chat, aiMsg, modelId){
         panel = document.createElement("details");
         panel.className = "thinking-panel streaming";
         panel.open = state.general.showThinking;
-        const initLabel = state.general.showThinking ? "思考中…" : "思考中…（内容已隐藏）";
-        panel.innerHTML = `<summary><span class="dot"></span><span class="label">${initLabel}</span></summary><div class="thinking-content"></div>`;
+        const initLabel = state.general.showThinking ? t("thinking.streaming") : t("thinking.streaming.hidden");
+        panel.innerHTML = `<summary><span class="dot"></span><span class="label">${escapeHtml(initLabel)}</span></summary><div class="thinking-content"></div>`;
         body.querySelector(".thinking-slot").appendChild(panel);
         // 思考开始 → 清掉气泡里的"等待"占位
         const tdots = body.querySelector(".content .typing-dots");
@@ -1093,7 +1372,7 @@ async function streamResponse(chat, aiMsg, modelId){
         panel.classList.remove("streaming");
         panel.open = false;
         const ms = aiMsg.reasoningMs || 0;
-        const prefix = state.general.showThinking ? "思考过程" : "思考过程·已隐藏";
+        const prefix = state.general.showThinking ? t("thinking.done") : t("thinking.done.hidden");
         panel.querySelector(".label").textContent = `${prefix}${ms?` · ${(ms/1000).toFixed(1)}s`:""}`;
       }
       contentEl.innerHTML = renderMarkdown(aiMsg.content)+'<span class="cursor-blink"></span>';
@@ -1133,8 +1412,8 @@ async function streamResponse(chat, aiMsg, modelId){
       await callGemini({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
     }
   }catch(e){
-    if(e.name==="AbortError"){ aiMsg.content += "\n\n_[已中止]_"; }
-    else { aiMsg.content += `\n\n> ❌ **错误**：${e.message}\n\n请检查 API Key、Base URL、模型名、网络以及 CORS 设置。`; }
+    if(e.name==="AbortError"){ aiMsg.content += "\n\n" + t("msg.aborted"); }
+    else { aiMsg.content += `\n\n> ❌ **${t("msg.error.label")}**: ${e.message}\n\n${t("msg.error.suffix")}`; }
   }
   if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; }
   // 最终渲染
@@ -1145,7 +1424,7 @@ async function streamResponse(chat, aiMsg, modelId){
       panel.classList.remove("streaming");
       panel.open = false;
       const ms = aiMsg.reasoningMs || 0;
-      const prefix = (state.general.showThinking && aiMsg.reasoning) ? "思考过程" : "思考过程·已隐藏";
+      const prefix = (state.general.showThinking && aiMsg.reasoning) ? t("thinking.done") : t("thinking.done.hidden");
       panel.querySelector(".label").textContent = `${prefix}${ms?` · ${(ms/1000).toFixed(1)}s`:""}`;
     }
     const last = msgEl.querySelector(".content");
@@ -1207,7 +1486,7 @@ function buildOpenAIMessages(chat){
     let txt = m.content||"";
     const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
     if(fileTexts.length){
-      txt += "\n\n" + fileTexts.map(f=>`【附件: ${f.name}】\n${f.text}`).join("\n\n");
+      txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n");
     }
     const images = (m.attachments||[]).filter(a=>a.kind==="image");
     if(images.length){
@@ -1251,7 +1530,7 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
     if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
     let txt = m.content||"";
     const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
-    if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`【附件: ${f.name}】\n${f.text}`).join("\n\n"); }
+    if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     const images = (m.attachments||[]).filter(a=>a.kind==="image");
     const msg = {role:"user", content:txt};
     if(images.length){
@@ -1306,7 +1585,7 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
     const blocks = [];
     let txt = m.content||"";
     const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
-    if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`【附件: ${f.name}】\n${f.text}`).join("\n\n"); }
+    if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     if(txt) blocks.push({type:"text", text:txt});
     for(const img of (m.attachments||[]).filter(a=>a.kind==="image")){
       const [meta, b64] = img.dataUrl.split(",");
@@ -1347,7 +1626,7 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
     const parts = [];
     let txt = m.content||"";
     const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
-    if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`【附件: ${f.name}】\n${f.text}`).join("\n\n"); }
+    if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     if(txt) parts.push({text:txt});
     for(const img of (m.attachments||[]).filter(a=>a.kind==="image")){
       const [meta, b64] = img.dataUrl.split(",");
@@ -1410,11 +1689,11 @@ function lastN(messages){
 /* ------------------------- UI wiring ------------------------- */
 function setSending(on, phase){
   const btn = document.getElementById("sendBtn");
-  if(on){ btn.classList.add("stop-btn"); btn.innerHTML="■"; btn.title="停止"; btn.onclick=()=>currentController?.abort(); }
-  else { btn.classList.remove("stop-btn"); btn.innerHTML="➤"; btn.title="发送"; btn.onclick=sendMessage; }
+  if(on){ btn.classList.add("stop-btn"); btn.innerHTML="■"; btn.title=t("stop.title"); btn.onclick=()=>currentController?.abort(); }
+  else { btn.classList.remove("stop-btn"); btn.innerHTML="➤"; btn.title=t("send.title"); btn.onclick=sendMessage; }
   const hint = document.getElementById("statusHint");
   if(on){
-    hint.innerHTML = `<span class="status-pulse">${escapeHtml(phase||"连接中…")}</span>`;
+    hint.innerHTML = `<span class="status-pulse">${escapeHtml(phase||t("status.connecting"))}</span>`;
   }else{
     hint.textContent = "";
   }
@@ -1461,8 +1740,8 @@ function saveSettings(){
   state.general.maxTokens = document.getElementById("cfg_max_tokens").value.trim();
   state.general.historyN = Number(document.getElementById("cfg_history_n").value)||40;
   state.general.showThinking = document.getElementById("cfg_show_thinking").checked;
-  state.general.userName = document.getElementById("cfg_user_name").value.trim() || "我";
-  state.general.aiName = document.getElementById("cfg_ai_name").value.trim() || "AI";
+  state.general.userName = document.getElementById("cfg_user_name").value.trim() || t("userName.default");
+  state.general.aiName = document.getElementById("cfg_ai_name").value.trim() || t("aiName.default");
   saveState(); populateModelSelect(); updateThinkingToggle(); renderMessages(); closeSettings();
 }
 
@@ -1477,7 +1756,7 @@ async function fetchProviderModels(provider){
   const keyEl = document.getElementById(`cfg_${provider}_key`);
   let base = (baseEl.value || baseEl.placeholder || "").trim().replace(/\/+$/,"");
   const key = (keyEl.value || "").trim();
-  if(!base) throw new Error("请先填写 Base URL");
+  if(!base) throw new Error(t("alert.baseUrlRequired"));
 
   if(provider === "openai"){
     const r = await fetch(base+"/models", {headers: key ? {"Authorization":"Bearer "+key} : {}});
@@ -1524,7 +1803,7 @@ function renderModelPicker(provider, names){
   const existing = new Set(parseModelLines(document.getElementById(`cfg_${provider}_models`).value));
   list.innerHTML = "";
   if(!names.length){
-    list.innerHTML = `<div class="picker-empty">未返回任何模型</div>`;
+    list.innerHTML = `<div class="picker-empty">${escapeHtml(t("picker.empty"))}</div>`;
   }else{
     // 排序：已选优先 → 字母序
     const sorted = [...names].sort((a,b)=>{
@@ -1542,7 +1821,7 @@ function renderModelPicker(provider, names){
       list.appendChild(row);
     });
   }
-  count.textContent = `共 ${names.length} 个 · 已选 ${[...list.querySelectorAll("input:checked")].length}`;
+  count.textContent = t("picker.count", names.length, [...list.querySelectorAll("input:checked")].length);
   filter.value = "";
   filter.oninput = ()=>{
     const q = filter.value.toLowerCase();
@@ -1554,7 +1833,7 @@ function renderModelPicker(provider, names){
   list.onchange = ()=>{
     const total = list.querySelectorAll("input").length;
     const selected = list.querySelectorAll("input:checked").length;
-    count.textContent = `共 ${total} 个 · 已选 ${selected}`;
+    count.textContent = t("picker.count", total, selected);
   };
   panel.style.display = "";
 }
@@ -1562,12 +1841,12 @@ function renderModelPicker(provider, names){
 async function handleFetchModels(provider, btn){
   const panel = document.getElementById(`picker_${provider}`);
   const originalText = btn.textContent;
-  btn.disabled = true; btn.textContent = "⏳ 拉取中…";
+  btn.disabled = true; btn.textContent = t("providers.fetching");
   try{
     const names = await fetchProviderModels(provider);
     renderModelPicker(provider, names);
   }catch(e){
-    alert(`获取模型列表失败：${e.message}\n\n请检查 Base URL、API Key 是否正确，以及目标服务的 CORS 设置（Ollama 需 OLLAMA_ORIGINS=*）。`);
+    alert(t("alert.fetchFailed", e.message));
   }finally{
     btn.disabled = false; btn.textContent = originalText;
   }
@@ -1577,7 +1856,7 @@ function applyModelPicker(provider){
   const panel = document.getElementById(`picker_${provider}`);
   const selected = [...panel.querySelectorAll(".picker-list input[type=checkbox]:checked")].map(cb => cb.value);
   if(selected.length === 0){
-    if(!confirm("没有勾选任何模型，将清空当前模型列表，确定继续？")) return;
+    if(!confirm(t("confirm.emptyPicker"))) return;
   }
   document.getElementById(`cfg_${provider}_models`).value = selected.join("\n");
   panel.style.display = "none";
@@ -1608,14 +1887,14 @@ function importData(file){
   r.onload = ()=>{
     try{
       const s = JSON.parse(r.result);
-      if(!s.chats) throw new Error("无效文件");
-      if(confirm("将合并/覆盖当前数据？点击确定覆盖，取消则合并对话。")){
+      if(!s.chats) throw new Error(t("error.invalidFile"));
+      if(confirm(t("confirm.import"))){
         state = Object.assign(structuredClone(DEFAULT_STATE), s);
       }else{
         state.chats = (s.chats||[]).concat(state.chats);
       }
-      saveState(); applyTheme(); populateModelSelect(); renderChatList(); renderMessages(); updateTopBar();
-    }catch(e){ alert("导入失败："+e.message); }
+      saveState(); applyTheme(); applyI18n(); populateModelSelect(); renderChatList(); renderMessages(); updateTopBar();
+    }catch(e){ alert(t("alert.importFailed")+e.message); }
   };
   r.readAsText(file);
 }
@@ -1623,12 +1902,14 @@ function importData(file){
 /* ------------------------- Init ------------------------- */
 function init(){
   applyTheme();
+  applyI18n();
   if(state.chats.length===0) newChat();
   populateModelSelect();
   renderChatList(); renderMessages(); updateTopBar();
 
   document.getElementById("newChatBtn").onclick = newChat;
   document.getElementById("themeBtn").onclick = ()=>{ state.theme = state.theme==="dark"?"light":"dark"; saveState(); applyTheme(); };
+  document.getElementById("langBtn").onclick = ()=>{ setLang(curLang()==="en" ? "zh" : "en"); };
   document.getElementById("settingsBtn").onclick = openSettings;
   document.getElementById("closeSettings").onclick = closeSettings;
   document.getElementById("cancelSettings").onclick = closeSettings;
@@ -1651,7 +1932,7 @@ function init(){
   document.getElementById("importFileInput").onchange = (e)=>{ const f = e.target.files[0]; if(f) importData(f); e.target.value=""; };
   document.getElementById("clearBtn").onclick = ()=>{
     const c = currentChat(); if(!c) return;
-    if(confirm("清空当前对话的所有消息？")){ c.messages=[]; saveState(); renderMessages(); }
+    if(confirm(t("confirm.clearChat"))){ c.messages=[]; saveState(); renderMessages(); }
   };
   document.getElementById("menuBtn").onclick = openMobileSidebar;
   document.getElementById("mobileMask").onclick = closeMobileSidebar;
@@ -1665,7 +1946,7 @@ function init(){
     const el = document.getElementById("thinkingToggle");
     const label = el.querySelector("span:last-child");
     const orig = label.textContent;
-    label.textContent = state.general.showThinking ? "思考·已开启" : "思考·已关闭";
+    label.textContent = state.general.showThinking ? t("thinking.toggle.on") : t("thinking.toggle.off");
     setTimeout(()=>{ label.textContent = orig; }, 1200);
   };
 
