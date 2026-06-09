@@ -1,8 +1,146 @@
-# chatbox-lite
-
 # Chatbox Lite
 
-> 一个 **单文件** 浏览器端多模型聊天页面 —— 双击HTML文件即开即用。
+> A **single-file** browser-based multi-model chat page — double-click the HTML and it just works.
+
+Zero dependencies, zero backend, zero install. All data lives in your browser's `localStorage` and is never uploaded to any third-party server. One HTML file is the entire application.
+
+---
+
+## ✨ Features
+
+- **Unified UI across providers**: OpenAI compatible (DeepSeek / Moonshot / SiliconFlow / OpenRouter / vLLM …), Anthropic Claude, Google Gemini, local Ollama / llama.cpp / LM Studio.
+- **Streaming output**: Server-Sent Events / NDJSON both supported, rendered as it streams.
+- **Visible thinking process**: Compatible with OpenAI `reasoning_content`, Ollama `thinking`, Claude `thinking_delta`, Gemini `thought`, and inline `<think>` / `<thinking>` tags (DeepSeek-R1, etc.). One-click toggle, auto-strips leaked prefixes.
+- **Full Markdown stack**: GFM tables, code highlighting (highlight.js), KaTeX math, DOMPurify XSS filtering.
+- **Vision + files**: Paste/drag-drop images; PDF / DOCX / TXT / source code parsed as context.
+- **Self-service model lists**: After filling in Base URL and API Key, click "🔄 Fetch model list" and pick the models you want from a checkbox panel — no more typos.
+- **Smart vendor detection**: In OpenAI-compatible mode, the vendor name is auto-extracted from the host as a prefix (`api.deepseek.com` → `DeepSeek · model`).
+- **Refined scroll behavior**: Manually scrolling up during streaming pauses auto-follow and floats a "back to latest" button with an unread dot.
+- **Personalization**: Custom user / AI display names, light/dark theme, system prompt, temperature, context length, thinking budget.
+- **Multi-session**: Manage, rename, delete chats from the left sidebar; JSON export / import.
+- **Per-message actions**: Regenerate (re-answer with a different model), edit & resend (puts the message back in the input and truncates what follows).
+- **Responsive**: Collapsible sidebar on mobile, wide layout on desktop.
+- **Keyboard friendly**: `Enter` to send, `Shift+Enter` for newline, `Ctrl/⌘+N` for new chat.
+- **i18n**: Built-in English / Chinese UI switch (top-left "EN / 中" toggle).
+
+---
+
+## 🚀 Quick start
+
+1. Grab `index.html` from [Releases](https://github.com/lfbear/chatbox-lite/) or `git clone` the repo.
+2. Double-click to open in a browser (Chrome / Edge / Firefox recommended).
+3. Click "⚙ Settings" at the bottom-left → fill in the Base URL and API Key for any provider.
+4. Click **🔄 Fetch model list** next to the model list, pick the models you want → Save.
+5. Pick a model from the top dropdown and start chatting.
+
+> You can also host it on any static server (Nginx / GitHub Pages / Cloudflare Pages); the single HTML file needs no build step.
+
+---
+
+## 🔌 Provider configuration
+
+| Type | Base URL example | API Key source |
+| --- | --- | --- |
+| OpenAI official | `https://api.openai.com/v1` | platform.openai.com |
+| DeepSeek | `https://api.deepseek.com/v1` | platform.deepseek.com |
+| Moonshot | `https://api.moonshot.cn/v1` | platform.moonshot.cn |
+| SiliconFlow | `https://api.siliconflow.cn/v1` | cloud.siliconflow.cn |
+| OpenRouter | `https://openrouter.ai/api/v1` | openrouter.ai |
+| Anthropic Claude | `https://api.anthropic.com/v1` | console.anthropic.com |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta` | aistudio.google.com |
+| Ollama | `http://localhost:11434` | (can be empty) |
+| LM Studio | `http://localhost:1234/v1` | (can be empty) |
+| llama.cpp | `http://localhost:8080/v1` | (can be empty) |
+
+Any "OpenAI-compatible" relay / proxy can go in the **OpenAI compatible** block; the vendor name is auto-detected from the host and used as the dropdown prefix.
+
+---
+
+## 🌐 CORS and direct-from-browser calls
+
+Because this is a pure front-end app, every request goes **directly from the browser**, so the target service must allow cross-origin requests.
+
+- **OpenAI / Claude / Gemini official endpoints**: native CORS support, works out of the box. Claude requests automatically include `anthropic-dangerous-direct-browser-access: true`.
+- **Ollama**: set the environment variable `OLLAMA_ORIGINS=*` before launch, otherwise the browser preflight will be blocked.
+  ```bash
+  # macOS / Linux
+  OLLAMA_ORIGINS=* ollama serve
+
+  # Windows (PowerShell)
+  $env:OLLAMA_ORIGINS="*"; ollama serve
+  ```
+- **Self-hosted reverse proxies**: make sure to return `Access-Control-Allow-Origin` and `Access-Control-Allow-Headers`.
+
+---
+
+## 🔒 Privacy & security
+
+- All API keys, chat history, and configuration are stored **only in local `localStorage`** and are never sent anywhere (except to the model APIs you've configured).
+- Do not use on shared computers; exported JSON files contain plaintext keys — keep them safe.
+- Markdown rendering is XSS-filtered with DOMPurify.
+
+---
+
+## ⌨️ Keyboard shortcuts
+
+| Shortcut | Action |
+| --- | --- |
+| `Enter` | Send |
+| `Shift+Enter` | Newline |
+| `Ctrl` / `⌘` + `N` | New chat |
+
+---
+
+## 🛠️ Tech stack
+
+Pure static, no build step:
+
+- [marked](https://marked.js.org/) · Markdown rendering
+- [highlight.js](https://highlightjs.org/) · code highlighting
+- [KaTeX](https://katex.org/) · math
+- [DOMPurify](https://github.com/cure53/DOMPurify) · XSS filtering
+- [pdf.js](https://mozilla.github.io/pdf.js/) · PDF text extraction
+- [mammoth.js](https://github.com/mwilliamson/mammoth.js) · DOCX text extraction
+
+All libraries are loaded via CDN; if you want fully offline use, replace the `<script>` / `<link>` URLs with local paths.
+
+---
+
+## 📋 Known limitations
+
+- Browser-side calls are sensitive to CORS configuration on self-hosted relays; if you see `Failed to fetch`, check CORS first.
+- No Function Calling / Tool Use (this app focuses on plain conversation).
+- No streaming token usage stats (some providers don't return them either).
+- Image generation, TTS, ASR, and other non-chat capabilities are out of scope.
+
+---
+
+## 🗺️ Roadmap
+
+Suggestions welcome in Issues:
+
+- [ ] Custom providers (add a standalone block for any OpenAI-compatible endpoint)
+- [ ] Conversation search
+- [ ] Prompt library
+- [ ] Installable PWA / offline support
+
+---
+
+## 🤝 Contributing
+
+PRs / issues welcome. Since this is a single-file project, just edit `chatbox-lite/index.html` directly — no build needed.
+
+---
+
+## 📄 License
+
+MIT
+
+---
+
+# Chatbox Lite（中文）
+
+> 一个 **单文件** 浏览器端多模型聊天页面 —— 双击 HTML 文件即开即用。
 
 零依赖、零后端、零安装。所有数据存在你浏览器的 `localStorage` 里，不会上传到任何第三方服务器。一个 HTML 文件就是一个完整的应用。
 
@@ -23,6 +161,7 @@
 - **消息级操作**：重新生成（换模型重答）、编辑重发（把消息放回输入框并截断后续）。
 - **响应式**：移动端折叠侧栏、桌面端宽布局。
 - **键盘友好**：`Enter` 发送、`Shift+Enter` 换行、`Ctrl/⌘+N` 新建对话。
+- **多语言**：内置中英文 UI 切换（左上角"EN / 中"按钮）。
 
 ---
 
