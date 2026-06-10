@@ -674,8 +674,9 @@ const I18N = {
     "reload.release":"Release to refresh",
     "reload.refreshing":"Refreshing…",
     "mermaid.enlarge":"Open full size",
-    "mermaid.download.png":"Download as PNG",
-    "mermaid.download.svg":"Download as SVG",
+    "mermaid.download.png":"Download as PNG (≈1800px)",
+    "mermaid.download.png.hd":"Download as PNG HD (≈3600px)",
+    "mermaid.download.svg":"Download as SVG (lossless)",
     "mermaid.close":"Close",
     "mermaid.error":"Diagram render error",
     "mermaid.loading":"Rendering diagram…",
@@ -821,8 +822,9 @@ const I18N = {
     "reload.release":"松开刷新",
     "reload.refreshing":"刷新中…",
     "mermaid.enlarge":"查看大图",
-    "mermaid.download.png":"下载 PNG",
-    "mermaid.download.svg":"下载 SVG",
+    "mermaid.download.png":"下载 PNG（约 1800px）",
+    "mermaid.download.png.hd":"下载 PNG 高清（约 3600px）",
+    "mermaid.download.svg":"下载 SVG（矢量无损）",
     "mermaid.close":"关闭",
     "mermaid.error":"图表渲染失败",
     "mermaid.loading":"渲染图表中…",
@@ -1175,6 +1177,70 @@ function loadMermaid(){
   return _mermaidPromise;
 }
 const MERMAID_HEAD_RE = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|sankey-beta|xychart-beta|block-beta|architecture-beta|C4Context|C4Container|C4Component)\b/;
+
+/* Mermaid source from LLMs sometimes has small syntax glitches that the parser
+   rejects but that a human would auto-correct. Fix the most common ones. */
+function fixMermaidSource(src){
+  if(!src) return src;
+  let out = src;
+
+  // Rule 1: Whitespace between node terminator and `:::className` class assignment.
+  //   e.g. `Start([开始项目]) :::startEnd`  →  `Start([开始项目]):::startEnd`
+  out = out.replace(/([\)\]\}\w])[ \t]+:::([A-Za-z_])/g, "$1:::$2");
+
+  // Rule 2: Subgraph declarations using non-identifier titles (Chinese chars,
+  //   full-width punctuation, spaces, leading digits, etc.). LLMs often abuse
+  //   the title slot as if it were a referencable id (e.g.
+  //   `subgraph 阶段一：规划` + later `阶段一：规划 --> P2`). Mermaid's lexer
+  //   can't tokenize that. We:
+  //     1) generate a synthetic clean id (_sg1, _sg2, …);
+  //     2) rewrite the declaration to `subgraph _sgN ["original title"]`;
+  //     3) replace every standalone occurrence of the original title elsewhere
+  //        in the source with the synthetic id.
+  const idMap = new Map();
+  let counter = 0;
+  out = out.replace(/^([ \t]*subgraph[ \t]+)(.+?)[ \t]*$/gm, (m, pre, title)=>{
+    // Skip if already in `id [title]` form
+    if(/^[A-Za-z_][A-Za-z0-9_]*[ \t]*\[/.test(title)) return m;
+    // Skip if already quoted at start
+    if(title.startsWith('"') || title.startsWith("'")) return m;
+    // Skip clean identifiers — they're fine as-is
+    if(/^[A-Za-z_][A-Za-z0-9_]*$/.test(title)) return m;
+    counter++;
+    const cleanId = `_sg${counter}`;
+    idMap.set(title, cleanId);
+    return `${pre}${cleanId} ["${title.replace(/"/g, "&quot;")}"]`;
+  });
+  if(idMap.size){
+    // Replace longer titles first so that titles which are prefixes of others
+    // don't shadow the match.
+    const titles = [...idMap.keys()].sort((a,b)=>b.length-a.length);
+    out = out.split("\n").map(line=>{
+      if(line.trim().startsWith("%%")) return line; // leave comments alone
+      let cur = line;
+      for(const title of titles){
+        const cleanId = idMap.get(title);
+        const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        // Match the title as a standalone token (preceded by SOL or whitespace,
+        // followed by whitespace or EOL). This safely skips occurrences inside
+        // labels like `["…"]` (preceded by `"`).
+        cur = cur.replace(new RegExp(`(^|\\s)${escaped}(?=\\s|$)`, "g"), `$1${cleanId}`);
+      }
+      return cur;
+    }).join("\n");
+  }
+
+  // Rule 3: Bracketed labels `[text]` that contain a literal `(` confuse the parser —
+  //   Mermaid sees `(` as the start of another shape. Auto-quote those labels.
+  //   Skip cylinder syntax `[(text)]` by requiring the first inner char ≠ `(`.
+  out = out.replace(/\[([^\]\n"\(][^\]\n"]*\([^\]\n]*)\]/g, (_, inner)=>{
+    const safe = inner.replace(/"/g, "&quot;");
+    return `["${safe}"]`;
+  });
+
+  return out;
+}
+
 function isMermaidCode(text, lang){
   if(lang === "mermaid") return true;
   if(!text) return false;
@@ -1208,9 +1274,12 @@ async function enhanceMermaid(root){
     pre.dataset.mermaidDone = "1";
     try{
       const id = "mmd_" + Math.random().toString(36).slice(2,10);
-      const result = await mermaid.render(id, text);
+      const fixed = fixMermaidSource(text);
+      const result = await mermaid.render(id, fixed);
       const svg = result?.svg || "";
       if(!svg) throw new Error("empty SVG");
+      // Keep the original text in dataset.source — sanitizer is deterministic
+      // so re-renders (e.g., theme switch) re-apply the same fix.
       mountMermaidBlock(pre, svg, text);
     }catch(e){
       delete pre.dataset.mermaidDone;
@@ -1261,6 +1330,7 @@ function openMermaidLightbox(svgHTML){
       `<div class="mermaid-lightbox">` +
         `<div class="mermaid-lightbox-actions">` +
           `<button class="mmd-btn" data-act="png">⬇ PNG</button>` +
+          `<button class="mmd-btn" data-act="png-hd">⬇ PNG HD</button>` +
           `<button class="mmd-btn" data-act="svg">⬇ SVG</button>` +
           `<button class="mmd-btn" data-act="close">✕</button>` +
         `</div>` +
@@ -1270,7 +1340,10 @@ function openMermaidLightbox(svgHTML){
     lb.addEventListener("click",(e)=>{ if(e.target === lb) closeMermaidLightbox(); });
     lb.querySelector('[data-act="close"]').addEventListener("click", closeMermaidLightbox);
     lb.querySelector('[data-act="png"]').addEventListener("click",()=>{
-      downloadMermaid(lb.querySelector(".mermaid-lightbox-content").innerHTML, "png");
+      downloadMermaid(lb.querySelector(".mermaid-lightbox-content").innerHTML, "png", {targetLong: MERMAID_PNG_STD});
+    });
+    lb.querySelector('[data-act="png-hd"]').addEventListener("click",()=>{
+      downloadMermaid(lb.querySelector(".mermaid-lightbox-content").innerHTML, "png", {targetLong: MERMAID_PNG_HD, tag: "hd"});
     });
     lb.querySelector('[data-act="svg"]').addEventListener("click",()=>{
       downloadMermaid(lb.querySelector(".mermaid-lightbox-content").innerHTML, "svg");
@@ -1281,6 +1354,7 @@ function openMermaidLightbox(svgHTML){
   }
   // Refresh dynamic tooltips on each open
   lb.querySelector('[data-act="png"]').title = t("mermaid.download.png");
+  lb.querySelector('[data-act="png-hd"]').title = t("mermaid.download.png.hd");
   lb.querySelector('[data-act="svg"]').title = t("mermaid.download.svg");
   lb.querySelector('[data-act="close"]').title = t("mermaid.close");
   lb.querySelector(".mermaid-lightbox-content").innerHTML = svgHTML;
@@ -1294,7 +1368,12 @@ function closeMermaidLightbox(){
   if(lb) lb.classList.add("hide");
 }
 
-function downloadMermaid(svgHTML, format){
+// PNG long-side targets (px). Standard = good for docs/slides; HD = print/zoom.
+const MERMAID_PNG_STD = 1800;
+const MERMAID_PNG_HD  = 3600;
+
+function downloadMermaid(svgHTML, format, opts){
+  opts = opts || {};
   const tmp = document.createElement("div");
   tmp.innerHTML = svgHTML;
   const svgEl = tmp.querySelector("svg");
@@ -1304,6 +1383,27 @@ function downloadMermaid(svgHTML, format){
   // (loading remote fonts via SVG would otherwise taint the canvas).
   if(!svgEl.getAttribute("font-family")){
     svgEl.setAttribute("font-family", "-apple-system, BlinkMacSystemFont, 'PingFang SC', system-ui, sans-serif");
+  }
+  // Determine SVG natural dimensions from viewBox (or fall back to attributes)
+  const vb = svgEl.viewBox?.baseVal;
+  const vbW = vb?.width || parseFloat(svgEl.getAttribute("width")) || 800;
+  const vbH = vb?.height || parseFloat(svgEl.getAttribute("height")) || 600;
+  // Give the SVG explicit width/height so any image viewer that ignores viewBox
+  // still renders at the correct intrinsic size.
+  svgEl.setAttribute("width", vbW);
+  svgEl.setAttribute("height", vbH);
+  // Inject a background rect that matches the theme. Without this, opening the
+  // SVG on a white-default viewer makes the light-on-dark text vanish.
+  const bgColor = state.theme === "dark" ? "#27241f" : "#faf8f3";
+  if(!svgEl.querySelector(":scope > rect[data-bg]")){
+    const bg = svgEl.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute("data-bg", "1");
+    bg.setAttribute("x", vb?.x ?? 0);
+    bg.setAttribute("y", vb?.y ?? 0);
+    bg.setAttribute("width", vbW);
+    bg.setAttribute("height", vbH);
+    bg.setAttribute("fill", bgColor);
+    svgEl.insertBefore(bg, svgEl.firstChild);
   }
   const xml = new XMLSerializer().serializeToString(svgEl);
   const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
@@ -1315,24 +1415,31 @@ function downloadMermaid(svgHTML, format){
   // PNG via canvas — use a data: URL (not blob:) so cross-origin checks
   // can't taint the canvas under any browser.
   const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+  const targetLong = opts.targetLong || MERMAID_PNG_STD;
   const img = new Image();
   img.onload = ()=>{
-    let w = img.naturalWidth, h = img.naturalHeight;
-    const vb = svgEl.viewBox?.baseVal;
-    if((!w || !h) && vb){ w = vb.width; h = vb.height; }
+    let w = img.naturalWidth || vbW;
+    let h = img.naturalHeight || vbH;
     w = w || 800; h = h || 600;
-    const scale = 2;
+    // Target a specific longest-side pixel size. Both down- and up-scales,
+    // with sane bounds (0.5×–6×) for memory + quality.
+    const longer = Math.max(w, h);
+    let scale = targetLong / longer;
+    scale = Math.max(0.5, Math.min(scale, 6));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(w * scale));
     canvas.height = Math.max(1, Math.round(h * scale));
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = state.theme === "dark" ? "#27241f" : "#ffffff";
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.fillStyle = bgColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0, w, h);
+    const tag = opts.tag ? `-${opts.tag}` : "";
     try{
       canvas.toBlob(blob=>{
-        if(blob) triggerDownload(blob, `diagram-${ts}.png`);
+        if(blob) triggerDownload(blob, `diagram-${ts}${tag}.png`);
       }, "image/png");
     }catch(e){
       // Safety net: if the canvas is still tainted somehow, fall back to SVG
@@ -1363,7 +1470,7 @@ async function reRenderAllMermaid(){
     if(!src) continue;
     try{
       const id = "mmd_" + Math.random().toString(36).slice(2,10);
-      const {svg} = await mermaid.render(id, src);
+      const {svg} = await mermaid.render(id, fixMermaidSource(src));
       block.querySelector(".mermaid-svg").innerHTML = svg;
       const svgEl = block.querySelector("svg");
       if(svgEl){ svgEl.removeAttribute("width"); svgEl.removeAttribute("height"); svgEl.style.maxWidth="100%"; svgEl.style.height="auto"; }
