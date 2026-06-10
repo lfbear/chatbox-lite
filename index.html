@@ -141,6 +141,24 @@ body.standalone .pwa-only{display:inline-flex}
 .msg .content code:not(pre code){background:var(--bg-3);padding:2px 5px;border-radius:4px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
 .msg .content pre .copy-code{position:absolute;top:8px;right:8px;font-size:11px;padding:3px 8px;background:rgba(255,255,255,.1);color:#fff;border-radius:4px;opacity:0;transition:opacity .15s}
 .msg .content pre:hover .copy-code{opacity:1}
+/* Mermaid diagram block */
+.mermaid-block{position:relative;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:14px 12px;margin:10px 0;overflow-x:auto;cursor:zoom-in;-webkit-overflow-scrolling:touch}
+.mermaid-svg{display:flex;justify-content:center;min-height:40px}
+.mermaid-svg svg{max-width:100%;height:auto}
+.mermaid-actions{position:absolute;top:6px;right:6px;display:flex;gap:4px;opacity:0;transition:opacity .15s;cursor:default}
+.mermaid-block:hover .mermaid-actions{opacity:1}
+@media (hover:none){.mermaid-actions{opacity:.85}}
+.mmd-btn{background:var(--bg-3);color:var(--fg);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;border:1px solid var(--border);transition:all .15s;line-height:1;display:inline-flex;align-items:center;gap:4px}
+.mmd-btn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mermaid-warn{font-size:12px;color:var(--danger);padding:6px 10px;background:var(--bg-2);border:1px dashed var(--danger);border-radius:8px;margin:8px 0}
+
+/* Lightbox for diagram full-size view */
+.mermaid-lightbox-mask{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:200;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom))}
+.mermaid-lightbox-mask.hide{display:none}
+.mermaid-lightbox{background:var(--bg);border:1px solid var(--border);border-radius:14px;width:min(96vw,1280px);max-height:92vh;padding:14px;display:flex;flex-direction:column;gap:10px}
+.mermaid-lightbox-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.mermaid-lightbox-content{overflow:auto;flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-2);border-radius:10px;padding:12px;min-height:200px}
+.mermaid-lightbox-content svg{max-width:100%;height:auto;display:block}
 .msg .content .md-table-wrap{overflow-x:auto;max-width:100%;margin:8px 0;-webkit-overflow-scrolling:touch}
 .msg .content .md-table-wrap table{margin:0}
 .msg .content table{border-collapse:collapse;margin:8px 0;max-width:100%}
@@ -655,6 +673,12 @@ const I18N = {
     "reload.pull":"Pull to refresh",
     "reload.release":"Release to refresh",
     "reload.refreshing":"Refreshing…",
+    "mermaid.enlarge":"Open full size",
+    "mermaid.download.png":"Download as PNG",
+    "mermaid.download.svg":"Download as SVG",
+    "mermaid.close":"Close",
+    "mermaid.error":"Diagram render error",
+    "mermaid.loading":"Rendering diagram…",
     "sidebar.newChat":"＋ New chat",
     "sidebar.settings":"⚙ Settings",
     "sidebar.export":"⬇ Export",
@@ -796,6 +820,12 @@ const I18N = {
     "reload.pull":"下拉刷新",
     "reload.release":"松开刷新",
     "reload.refreshing":"刷新中…",
+    "mermaid.enlarge":"查看大图",
+    "mermaid.download.png":"下载 PNG",
+    "mermaid.download.svg":"下载 SVG",
+    "mermaid.close":"关闭",
+    "mermaid.error":"图表渲染失败",
+    "mermaid.loading":"渲染图表中…",
     "sidebar.newChat":"＋ 新建对话",
     "sidebar.settings":"⚙ 设置",
     "sidebar.export":"⬇ 导出",
@@ -1064,6 +1094,212 @@ function renderMarkdown(text){
   html = DOMPurify.sanitize(html,{ADD_ATTR:["target"],ADD_TAGS:["div"]});
   return html;
 }
+/* ------------------------- Mermaid (lazy-loaded) ------------------------- */
+let _mermaidPromise = null;
+function loadMermaid(){
+  if(_mermaidPromise) return _mermaidPromise;
+  _mermaidPromise = import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")
+    .then(mod=>{
+      const mermaid = mod.default;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: state.theme === "dark" ? "dark" : "default",
+        securityLevel: "strict",
+        fontFamily: "inherit"
+      });
+      window.__mermaid = mermaid;
+      return mermaid;
+    })
+    .catch(err=>{ _mermaidPromise = null; throw err; });
+  return _mermaidPromise;
+}
+const MERMAID_HEAD_RE = /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram|sankey-beta|xychart-beta|block-beta|architecture-beta|C4Context|C4Container|C4Component)\b/;
+function isMermaidCode(text, lang){
+  if(lang === "mermaid") return true;
+  if(!text) return false;
+  // Look at the first non-empty line — Mermaid diagrams declare type at the top
+  const head = text.split(/\r?\n/).map(s=>s.trim()).find(Boolean) || "";
+  return MERMAID_HEAD_RE.test(head);
+}
+
+async function enhanceMermaid(root){
+  if(!root) return;
+  const codes = root.querySelectorAll("pre > code");
+  const targets = [];
+  codes.forEach(code=>{
+    const lang = (code.className.match(/language-([a-z0-9-]+)/i) || [])[1] || "";
+    const text = code.textContent || "";
+    if(isMermaidCode(text, lang)){
+      targets.push({code, text});
+    }
+  });
+  if(!targets.length) return;
+  let mermaid;
+  try{ mermaid = await loadMermaid(); }
+  catch(e){
+    // Network/CDN issue — leave code blocks intact, log once
+    console.warn("[mermaid] load failed:", e);
+    return;
+  }
+  for(const {code, text} of targets){
+    const pre = code.parentElement;
+    if(!pre || pre.dataset.mermaidDone === "1") continue;
+    pre.dataset.mermaidDone = "1";
+    try{
+      const id = "mmd_" + Math.random().toString(36).slice(2,10);
+      const result = await mermaid.render(id, text);
+      const svg = result?.svg || "";
+      if(!svg) throw new Error("empty SVG");
+      mountMermaidBlock(pre, svg, text);
+    }catch(e){
+      delete pre.dataset.mermaidDone;
+      const warn = document.createElement("div");
+      warn.className = "mermaid-warn";
+      warn.textContent = "⚠ " + t("mermaid.error") + (e && e.message ? ": " + String(e.message).slice(0,160) : "");
+      pre.parentNode.insertBefore(warn, pre);
+    }
+  }
+}
+
+function mountMermaidBlock(preEl, svgHTML, source){
+  const wrap = document.createElement("div");
+  wrap.className = "mermaid-block";
+  wrap.dataset.source = source;
+  wrap.innerHTML =
+    `<div class="mermaid-svg">${svgHTML}</div>` +
+    `<div class="mermaid-actions">` +
+      `<button class="mmd-btn" data-act="enlarge" title="${escapeHtml(t("mermaid.enlarge"))}">🔍</button>` +
+      `<button class="mmd-btn" data-act="png" title="${escapeHtml(t("mermaid.download.png"))}">⬇</button>` +
+    `</div>`;
+  // Let CSS control width; some Mermaid SVGs have explicit width attr
+  const svgEl = wrap.querySelector("svg");
+  if(svgEl){ svgEl.removeAttribute("width"); svgEl.removeAttribute("height"); svgEl.style.maxWidth="100%"; svgEl.style.height="auto"; }
+  preEl.replaceWith(wrap);
+  // Actions
+  wrap.querySelector('[data-act="enlarge"]').addEventListener("click",(e)=>{
+    e.stopPropagation();
+    openMermaidLightbox(wrap.querySelector(".mermaid-svg").innerHTML);
+  });
+  wrap.querySelector('[data-act="png"]').addEventListener("click",(e)=>{
+    e.stopPropagation();
+    downloadMermaid(wrap.querySelector(".mermaid-svg").innerHTML, "png");
+  });
+  wrap.addEventListener("click",(e)=>{
+    if(e.target.closest(".mermaid-actions")) return;
+    openMermaidLightbox(wrap.querySelector(".mermaid-svg").innerHTML);
+  });
+}
+
+function openMermaidLightbox(svgHTML){
+  let lb = document.getElementById("mermaidLightbox");
+  if(!lb){
+    lb = document.createElement("div");
+    lb.id = "mermaidLightbox";
+    lb.className = "mermaid-lightbox-mask hide";
+    lb.innerHTML =
+      `<div class="mermaid-lightbox">` +
+        `<div class="mermaid-lightbox-actions">` +
+          `<button class="mmd-btn" data-act="png">⬇ PNG</button>` +
+          `<button class="mmd-btn" data-act="svg">⬇ SVG</button>` +
+          `<button class="mmd-btn" data-act="close">✕</button>` +
+        `</div>` +
+        `<div class="mermaid-lightbox-content"></div>` +
+      `</div>`;
+    document.body.appendChild(lb);
+    lb.addEventListener("click",(e)=>{ if(e.target === lb) closeMermaidLightbox(); });
+    lb.querySelector('[data-act="close"]').addEventListener("click", closeMermaidLightbox);
+    lb.querySelector('[data-act="png"]').addEventListener("click",()=>{
+      downloadMermaid(lb.querySelector(".mermaid-lightbox-content").innerHTML, "png");
+    });
+    lb.querySelector('[data-act="svg"]').addEventListener("click",()=>{
+      downloadMermaid(lb.querySelector(".mermaid-lightbox-content").innerHTML, "svg");
+    });
+    document.addEventListener("keydown",(e)=>{
+      if(e.key === "Escape" && !lb.classList.contains("hide")) closeMermaidLightbox();
+    });
+  }
+  // Refresh dynamic tooltips on each open
+  lb.querySelector('[data-act="png"]').title = t("mermaid.download.png");
+  lb.querySelector('[data-act="svg"]').title = t("mermaid.download.svg");
+  lb.querySelector('[data-act="close"]').title = t("mermaid.close");
+  lb.querySelector(".mermaid-lightbox-content").innerHTML = svgHTML;
+  // Strip fixed dims so it scales nicely
+  const svgEl = lb.querySelector(".mermaid-lightbox-content svg");
+  if(svgEl){ svgEl.removeAttribute("width"); svgEl.removeAttribute("height"); svgEl.style.maxWidth="100%"; svgEl.style.height="auto"; }
+  lb.classList.remove("hide");
+}
+function closeMermaidLightbox(){
+  const lb = document.getElementById("mermaidLightbox");
+  if(lb) lb.classList.add("hide");
+}
+
+function downloadMermaid(svgHTML, format){
+  const tmp = document.createElement("div");
+  tmp.innerHTML = svgHTML;
+  const svgEl = tmp.querySelector("svg");
+  if(!svgEl) return;
+  if(!svgEl.getAttribute("xmlns")) svgEl.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  // Ensure viewBox so rasterizer can size correctly
+  const xml = new XMLSerializer().serializeToString(svgEl);
+  const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+  if(format === "svg"){
+    const blob = new Blob([xml], {type:"image/svg+xml;charset=utf-8"});
+    triggerDownload(blob, `diagram-${ts}.svg`);
+    return;
+  }
+  // PNG via canvas
+  const url = URL.createObjectURL(new Blob([xml], {type:"image/svg+xml;charset=utf-8"}));
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = ()=>{
+    const w = img.naturalWidth || svgEl.viewBox?.baseVal?.width || 800;
+    const h = img.naturalHeight || svgEl.viewBox?.baseVal?.height || 600;
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(w * scale));
+    canvas.height = Math.max(1, Math.round(h * scale));
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = state.theme === "dark" ? "#27241f" : "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, 0, 0, w, h);
+    canvas.toBlob(blob=>{
+      if(blob) triggerDownload(blob, `diagram-${ts}.png`);
+      URL.revokeObjectURL(url);
+    }, "image/png");
+  };
+  img.onerror = ()=>{ URL.revokeObjectURL(url); console.warn("[mermaid] PNG rasterize failed"); };
+  img.src = url;
+}
+function triggerDownload(blob, filename){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1500);
+}
+
+/* Re-render existing diagrams after theme toggle so colors match. */
+async function reRenderAllMermaid(){
+  const mermaid = window.__mermaid;
+  if(!mermaid) return;
+  try{
+    mermaid.initialize({startOnLoad:false, theme: state.theme==="dark"?"dark":"default", securityLevel:"strict", fontFamily:"inherit"});
+  }catch{}
+  const blocks = document.querySelectorAll(".mermaid-block");
+  for(const block of blocks){
+    const src = block.dataset.source;
+    if(!src) continue;
+    try{
+      const id = "mmd_" + Math.random().toString(36).slice(2,10);
+      const {svg} = await mermaid.render(id, src);
+      block.querySelector(".mermaid-svg").innerHTML = svg;
+      const svgEl = block.querySelector("svg");
+      if(svgEl){ svgEl.removeAttribute("width"); svgEl.removeAttribute("height"); svgEl.style.maxWidth="100%"; svgEl.style.height="auto"; }
+    }catch{}
+  }
+}
+
 function renderMathIn(el){
   try{
     renderMathInElement(el,{
@@ -1368,6 +1604,7 @@ function renderMessageEl(m, idx){
       contentEl.innerHTML = renderMarkdown(liveContent);
       enhanceCodeBlocks(contentEl);
       renderMathIn(contentEl);
+      enhanceMermaid(contentEl);
     }else if(!m.thought && !m.reasoning){
       // 等待首个 token：显示三点跳动占位
       contentEl.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(t("waiting.aria"))}"><span></span><span></span><span></span></span>`;
@@ -1437,6 +1674,10 @@ async function editUserMessage(idx){
 
 function enhanceCodeBlocks(root){
   root.querySelectorAll("pre code").forEach(code=>{
+    const lang = (code.className.match(/language-([a-z0-9-]+)/i) || [])[1] || "";
+    const text = code.textContent || "";
+    // Mermaid blocks become rendered diagrams later — skip highlighting and copy button
+    if(isMermaidCode(text, lang)) return;
     try{ hljs.highlightElement(code); }catch{}
     const pre = code.parentElement;
     if(pre.querySelector(".copy-code")) return;
@@ -1787,6 +2028,7 @@ async function streamResponse(chat, aiMsg, modelId){
     last.innerHTML = renderMarkdown(aiMsg.content);
     enhanceCodeBlocks(last);
     renderMathIn(last);
+    enhanceMermaid(last);
   }
   setSending(false); currentController=null;
   saveState();
@@ -2412,7 +2654,7 @@ function init(){
   renderChatList(); renderMessages(); updateTopBar();
 
   document.getElementById("newChatBtn").onclick = newChat;
-  document.getElementById("themeBtn").onclick = ()=>{ state.theme = state.theme==="dark"?"light":"dark"; saveState(); applyTheme(); };
+  document.getElementById("themeBtn").onclick = ()=>{ state.theme = state.theme==="dark"?"light":"dark"; saveState(); applyTheme(); reRenderAllMermaid(); };
   document.getElementById("langBtn").onclick = ()=>{ setLang(curLang()==="en" ? "zh" : "en"); };
   document.getElementById("reloadBtn").onclick = reloadApp;
   document.getElementById("settingsBtn").onclick = openSettings;
