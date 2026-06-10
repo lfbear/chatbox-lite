@@ -19,6 +19,7 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 - **Personalization**: Custom user / AI display names, light/dark theme, system prompt, temperature, context length, thinking budget.
 - **Multi-session**: Manage, rename, delete chats from the left sidebar; JSON export / import.
 - **Per-message actions**: Regenerate (re-answer with a different model), edit & resend (puts the message back in the input and truncates what follows).
+- **Clear context, keep history**: Drop a "✂ Context cleared" divider with one click (or `Ctrl/⌘+K`) — past messages stay on screen but won't be sent to the model.
 - **Responsive**: Collapsible sidebar on mobile, wide layout on desktop.
 - **Keyboard friendly**: `Enter` to send, `Shift+Enter` for newline, `Ctrl/⌘+N` for new chat.
 - **i18n**: Built-in English / Chinese UI switch (top-left "EN / 中" toggle).
@@ -34,6 +35,23 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 5. Pick a model from the top dropdown and start chatting.
 
 > You can also host it on any static server (Nginx / GitHub Pages / Cloudflare Pages); the single HTML file needs no build step.
+
+---
+
+## 📱 Install as a desktop / mobile app (PWA)
+
+The page ships with an inline webmanifest, so once you host it over **HTTPS** (or `localhost`) you can install it like a native app — no separate manifest or service-worker file required.
+
+- **Chrome / Edge desktop** — click the ⋮ menu → **"Install Chatbox Lite"** (or **"Apps → Install this site as an app"**). Launches in a chrome-less window.
+- **macOS Safari (17+)** — **File → Add to Dock…** (or the Share button → **Add to Dock**).
+- **iOS / iPadOS Safari** — Share button → **Add to Home Screen**.
+- **Android Chrome** — ⋮ menu → **Install app** (or "Add to Home screen").
+
+> Caveat: opening the HTML via `file://` doesn't qualify for install. Use any static host — GitHub Pages, Cloudflare Pages, `python3 -m http.server`, etc.
+>
+> True offline support (works with no network at all) isn't enabled in this single-file build — it would require a separate `sw.js`. After install the app does open in a standalone window and works as long as your model API is reachable.
+
+**Refresh inside the installed app**: standalone PWAs have no browser refresh button. Tap the **↻** icon that appears in the sidebar header (only shown when running standalone), or on iOS/Android pull down on the message list.
 
 ---
 
@@ -87,7 +105,9 @@ Because this is a pure front-end app, every request goes **directly from the bro
 | --- | --- |
 | `Enter` | Send |
 | `Shift+Enter` | Newline |
-| `Ctrl` / `⌘` + `N` | New chat |
+| `Ctrl` / `⌘` + `Shift` + `O` | New chat |
+| `Ctrl` / `⌘` + `N` | New chat (fallback — most browsers reserve this for "new window") |
+| `Ctrl` / `⌘` + `K` | Clear context (keep visible history) |
 
 ---
 
@@ -159,6 +179,7 @@ MIT
 - **个性化**：自定义"用户名 / AI 名称"、深浅色主题、系统提示词、温度、上下文长度、思考预算。
 - **多会话**：左侧栏管理对话、改名、删除；支持 JSON 导出 / 导入。
 - **消息级操作**：重新生成（换模型重答）、编辑重发（把消息放回输入框并截断后续）。
+- **清除上下文、保留历史**：一键（或 `Ctrl/⌘+K`）插入"✂ 上下文已清除"分隔线 —— 历史消息仍在屏幕上，但不会再发送给模型。
 - **响应式**：移动端折叠侧栏、桌面端宽布局。
 - **键盘友好**：`Enter` 发送、`Shift+Enter` 换行、`Ctrl/⌘+N` 新建对话。
 - **多语言**：内置中英文 UI 切换（左上角"EN / 中"按钮）。
@@ -174,6 +195,23 @@ MIT
 5. 顶部下拉选模型，开聊。
 
 > 也可以挂到任意静态服务器（Nginx / GitHub Pages / Cloudflare Pages），单个 HTML 文件无需构建。
+
+---
+
+## 📱 安装为桌面 / 移动应用（PWA）
+
+页面已内置 inline 的 webmanifest，把它放到 **HTTPS** 网址（或 `localhost`）下访问，就能像原生 App 一样安装 —— 不需要额外的 manifest 或 service worker 文件。
+
+- **Chrome / Edge 桌面端** —— ⋮ 菜单 → **"安装 Chatbox Lite"**（或 **"应用 → 把该网站安装为应用"**）。会在独立窗口运行。
+- **macOS Safari (17+)** —— **文件 → 添加到程序坞…**（或分享菜单 → **添加到程序坞**）。
+- **iOS / iPadOS Safari** —— 分享按钮 → **添加到主屏幕**。
+- **Android Chrome** —— ⋮ 菜单 → **安装应用**（或 "添加到主屏幕"）。
+
+> 注意：用 `file://` 直接打开 HTML 是不能安装的。需要任意静态托管 —— GitHub Pages、Cloudflare Pages、`python3 -m http.server` 等都行。
+>
+> 真正的离线运行（完全断网仍可用）在当前单文件版本里没有开启 —— 那需要额外的 `sw.js` 文件。安装后页面会在独立窗口里启动，只要你配置的模型 API 还能连通，使用体验和原生应用一致。
+
+**安装后如何刷新**：独立 PWA 窗口没有浏览器的刷新按钮。点侧栏顶部的 **↻** 图标（仅在独立模式下显示），或在 iOS / Android 上从消息列表顶端下拉。
 
 ---
 
@@ -227,7 +265,9 @@ MIT
 | --- | --- |
 | `Enter` | 发送 |
 | `Shift+Enter` | 换行 |
-| `Ctrl` / `⌘` + `N` | 新建对话 |
+| `Ctrl` / `⌘` + `Shift` + `O` | 新建对话 |
+| `Ctrl` / `⌘` + `N` | 新建对话（兜底 —— 大多数浏览器会把此组合保留给"新建窗口"）|
+| `Ctrl` / `⌘` + `K` | 清除上下文（保留可见历史）|
 
 ---
 
