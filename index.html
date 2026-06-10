@@ -50,6 +50,41 @@ html[data-theme="dark"]{
   --danger:#d18484;
 }
 *{box-sizing:border-box}
+
+/* Top progress bar — visible from the first paint, drives itself via pure CSS
+   so it works even before JS executes (cold load, PWA reload, slow network). */
+.page-loader{
+  position:fixed;
+  top:env(safe-area-inset-top, 0);
+  left:0;
+  right:0;
+  height:2.5px;
+  background:#4f8df0;
+  transform-origin:0 50%;
+  transform:scaleX(0);
+  z-index:9999;
+  pointer-events:none;
+  opacity:.9;
+  box-shadow:0 0 6px rgba(79,141,240,.55);
+  animation:pageLoadAnim 6s cubic-bezier(.2,.85,.25,1) forwards;
+}
+@keyframes pageLoadAnim{
+  0%   { transform:scaleX(0); }
+  12%  { transform:scaleX(.18); }
+  28%  { transform:scaleX(.42); }
+  50%  { transform:scaleX(.65); }
+  72%  { transform:scaleX(.82); }
+  90%  { transform:scaleX(.93); }
+  100% { transform:scaleX(.96); }
+}
+.page-loader.done{
+  animation:none;
+  transform:scaleX(1);
+  transition:transform .25s ease-out, opacity .35s ease-in .12s;
+  opacity:0;
+}
+html[data-theme="dark"] .page-loader{ background:#7aabff; box-shadow:0 0 6px rgba(122,171,255,.55); }
+
 html,body{height:100%;margin:0;font-family:"Inter","-apple-system",BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:"cv11","ss01";letter-spacing:0.01em;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 input,textarea,select{font-family:inherit;color:inherit;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;outline:none}
@@ -403,6 +438,7 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 </style>
 </head>
 <body>
+<div class="page-loader" id="pageLoader" aria-hidden="true"></div>
 
 <div class="app">
   <div class="mobile-mask" id="mobileMask"></div>
@@ -2684,6 +2720,17 @@ function importData(file){
   r.readAsText(file);
 }
 
+/* ------------------------- Top page loader ------------------------- */
+function finishPageLoader(){
+  const el = document.getElementById("pageLoader");
+  if(!el || el.dataset.done==="1") return;
+  el.dataset.done = "1";
+  el.classList.add("done");
+  setTimeout(()=>{ if(el.parentNode) el.remove(); }, 500);
+}
+// Belt + suspenders: also complete on window load in case init() throws.
+window.addEventListener("load", ()=>setTimeout(finishPageLoader, 100));
+
 /* ------------------------- Standalone (installed PWA) detection ------------------------- */
 function isStandalone(){
   try{
@@ -2952,6 +2999,9 @@ function init(){
       if(k==="o"){ e.preventDefault(); newChat(); return; }
     }
   });
+
+  // Page is fully wired up — snap the top progress bar to 100% and fade it out
+  finishPageLoader();
 }
 
 document.addEventListener("DOMContentLoaded", init);
