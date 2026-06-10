@@ -1096,17 +1096,78 @@ function renderMarkdown(text){
 }
 /* ------------------------- Mermaid (lazy-loaded) ------------------------- */
 let _mermaidPromise = null;
+
+// Custom theme palettes — both add tri-tone color variety (blue/peach/green)
+// and align with the app's #4f8df0 accent.
+const MERMAID_LIGHT_VARS = {
+  primaryColor:        "#dbeafe",
+  primaryBorderColor:  "#4f8df0",
+  primaryTextColor:    "#1e3a5f",
+  secondaryColor:      "#fce7d4",
+  secondaryBorderColor:"#ea9a55",
+  secondaryTextColor:  "#7a3a1e",
+  tertiaryColor:       "#dcfce7",
+  tertiaryBorderColor: "#22c55e",
+  tertiaryTextColor:   "#1a4a2a",
+  lineColor:           "#64748b",
+  textColor:           "#3a3631",
+  mainBkg:             "#dbeafe",
+  nodeBorder:          "#4f8df0",
+  background:          "#faf8f3",
+  edgeLabelBackground: "#faf8f3",
+  clusterBkg:          "#f0eee7",
+  clusterBorder:       "#cbd5e1",
+  noteBkgColor:        "#fef3c7",
+  noteTextColor:       "#78350f",
+  noteBorderColor:     "#fbbf24"
+};
+const MERMAID_DARK_VARS = {
+  primaryColor:        "#1e3a5f",
+  primaryBorderColor:  "#7aabff",
+  primaryTextColor:    "#e8f0ff",
+  secondaryColor:      "#5a3a1e",
+  secondaryBorderColor:"#fb923c",
+  secondaryTextColor:  "#fde2c0",
+  tertiaryColor:       "#1e4a2a",
+  tertiaryBorderColor: "#22c55e",
+  tertiaryTextColor:   "#d8f5d8",
+  lineColor:           "#9cc1ff",
+  textColor:           "#e3ddd1",
+  mainBkg:             "#1e3a5f",
+  nodeBorder:          "#7aabff",
+  background:          "#27241f",
+  edgeLabelBackground: "#27241f",
+  clusterBkg:          "#23211d",
+  clusterBorder:       "#475569",
+  noteBkgColor:        "#3a2e10",
+  noteTextColor:       "#fde68a",
+  noteBorderColor:     "#a16207"
+};
+function mermaidConfig(){
+  const dark = state.theme === "dark";
+  return {
+    startOnLoad: false,
+    // Use "base" so themeVariables fully apply; otherwise built-in dark theme
+    // overrides several of our overrides.
+    theme: "base",
+    themeVariables: dark ? MERMAID_DARK_VARS : MERMAID_LIGHT_VARS,
+    securityLevel: "strict",
+    fontFamily: "inherit",
+    // Disable HTML labels → no <foreignObject>, which is the root cause of
+    // "Tainted canvas" errors when rasterizing the SVG to PNG.
+    flowchart: { htmlLabels: false, useMaxWidth: true, curve: "basis" },
+    class:     { htmlLabels: false, useMaxWidth: true },
+    sequence:  { useMaxWidth: true },
+    state:     { useMaxWidth: true },
+    gantt:     { useMaxWidth: true }
+  };
+}
 function loadMermaid(){
   if(_mermaidPromise) return _mermaidPromise;
   _mermaidPromise = import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs")
     .then(mod=>{
       const mermaid = mod.default;
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: state.theme === "dark" ? "dark" : "default",
-        securityLevel: "strict",
-        fontFamily: "inherit"
-      });
+      mermaid.initialize(mermaidConfig());
       window.__mermaid = mermaid;
       return mermaid;
     })
@@ -1239,7 +1300,11 @@ function downloadMermaid(svgHTML, format){
   const svgEl = tmp.querySelector("svg");
   if(!svgEl) return;
   if(!svgEl.getAttribute("xmlns")) svgEl.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  // Ensure viewBox so rasterizer can size correctly
+  // Inline a generic font-family so the rasterizer doesn't need to load remote fonts
+  // (loading remote fonts via SVG would otherwise taint the canvas).
+  if(!svgEl.getAttribute("font-family")){
+    svgEl.setAttribute("font-family", "-apple-system, BlinkMacSystemFont, 'PingFang SC', system-ui, sans-serif");
+  }
   const xml = new XMLSerializer().serializeToString(svgEl);
   const ts = new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
   if(format === "svg"){
@@ -1247,13 +1312,15 @@ function downloadMermaid(svgHTML, format){
     triggerDownload(blob, `diagram-${ts}.svg`);
     return;
   }
-  // PNG via canvas
-  const url = URL.createObjectURL(new Blob([xml], {type:"image/svg+xml;charset=utf-8"}));
+  // PNG via canvas — use a data: URL (not blob:) so cross-origin checks
+  // can't taint the canvas under any browser.
+  const dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
   const img = new Image();
-  img.crossOrigin = "anonymous";
   img.onload = ()=>{
-    const w = img.naturalWidth || svgEl.viewBox?.baseVal?.width || 800;
-    const h = img.naturalHeight || svgEl.viewBox?.baseVal?.height || 600;
+    let w = img.naturalWidth, h = img.naturalHeight;
+    const vb = svgEl.viewBox?.baseVal;
+    if((!w || !h) && vb){ w = vb.width; h = vb.height; }
+    w = w || 800; h = h || 600;
     const scale = 2;
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(w * scale));
@@ -1263,13 +1330,19 @@ function downloadMermaid(svgHTML, format){
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.scale(scale, scale);
     ctx.drawImage(img, 0, 0, w, h);
-    canvas.toBlob(blob=>{
-      if(blob) triggerDownload(blob, `diagram-${ts}.png`);
-      URL.revokeObjectURL(url);
-    }, "image/png");
+    try{
+      canvas.toBlob(blob=>{
+        if(blob) triggerDownload(blob, `diagram-${ts}.png`);
+      }, "image/png");
+    }catch(e){
+      // Safety net: if the canvas is still tainted somehow, fall back to SVG
+      console.warn("[mermaid] PNG export blocked, falling back to SVG:", e);
+      const blob = new Blob([xml], {type:"image/svg+xml;charset=utf-8"});
+      triggerDownload(blob, `diagram-${ts}.svg`);
+    }
   };
-  img.onerror = ()=>{ URL.revokeObjectURL(url); console.warn("[mermaid] PNG rasterize failed"); };
-  img.src = url;
+  img.onerror = ()=>{ console.warn("[mermaid] PNG image load failed"); };
+  img.src = dataUrl;
 }
 function triggerDownload(blob, filename){
   const a = document.createElement("a");
@@ -1283,9 +1356,7 @@ function triggerDownload(blob, filename){
 async function reRenderAllMermaid(){
   const mermaid = window.__mermaid;
   if(!mermaid) return;
-  try{
-    mermaid.initialize({startOnLoad:false, theme: state.theme==="dark"?"dark":"default", securityLevel:"strict", fontFamily:"inherit"});
-  }catch{}
+  try{ mermaid.initialize(mermaidConfig()); }catch{}
   const blocks = document.querySelectorAll(".mermaid-block");
   for(const block of blocks){
     const src = block.dataset.source;
