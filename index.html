@@ -76,6 +76,20 @@ a{-webkit-tap-highlight-color:transparent}
   .pwa-only{display:inline-flex}
 }
 body.standalone .pwa-only{display:inline-flex}
+/* Installed PWA on phone/tablet: no browser chrome → reclaim the empty band
+   above the home indicator by giving the textarea a taller idle min-height. */
+@media all and (display-mode:standalone) and (max-width:900px){
+  .composer textarea{min-height:92px;padding:12px 8px}
+  .composer{padding:8px}
+}
+@media all and (display-mode:fullscreen) and (max-width:900px){
+  .composer textarea{min-height:92px;padding:12px 8px}
+  .composer{padding:8px}
+}
+@media (max-width:900px){
+  body.standalone .composer textarea{min-height:92px;padding:12px 8px}
+  body.standalone .composer{padding:8px}
+}
 #reloadBtn{font-size:16px}
 #reloadBtn.spin{animation:reloadspin .9s linear infinite}
 @keyframes reloadspin{to{transform:rotate(360deg)}}
@@ -107,8 +121,8 @@ body.standalone .pwa-only{display:inline-flex}
 .top-bar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--bg)}
 .top-bar .title{flex:1;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-bar select{font-size:13px;padding:6px 8px;min-width:180px}
-.messages{flex:1;overflow-y:auto;padding:20px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.msg-wrap{max-width:840px;margin:0 auto;padding:0 20px}
+.messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.msg-wrap{max-width:840px;margin:0 auto;padding:0 20px;box-sizing:border-box}
 .msg{display:flex;gap:12px;margin-bottom:18px;position:relative}
 .msg .avatar{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:600}
 .msg.user .avatar{background:#b08968}
@@ -119,7 +133,7 @@ body.standalone .pwa-only{display:inline-flex}
 .msg .role .copy,.msg .role .act{opacity:0;transition:opacity .15s;font-size:11px;color:var(--fg-2);cursor:pointer;margin-left:8px;user-select:none}
 .msg:hover .copy,.msg:hover .act{opacity:1}
 .msg .copy:hover,.msg .act:hover{color:var(--accent)}
-.msg .content{line-height:1.75;font-size:15px;word-wrap:break-word;overflow-wrap:break-word;color:var(--fg)}
+.msg .content{line-height:1.75;font-size:15px;word-wrap:break-word;overflow-wrap:anywhere;color:var(--fg);min-width:0;max-width:100%}
 .msg .content p{margin:0.4em 0}
 .msg .content p:first-child{margin-top:0}
 .msg .content p:last-child{margin-bottom:0}
@@ -127,7 +141,9 @@ body.standalone .pwa-only{display:inline-flex}
 .msg .content code:not(pre code){background:var(--bg-3);padding:2px 5px;border-radius:4px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
 .msg .content pre .copy-code{position:absolute;top:8px;right:8px;font-size:11px;padding:3px 8px;background:rgba(255,255,255,.1);color:#fff;border-radius:4px;opacity:0;transition:opacity .15s}
 .msg .content pre:hover .copy-code{opacity:1}
-.msg .content table{border-collapse:collapse;margin:8px 0}
+.msg .content .md-table-wrap{overflow-x:auto;max-width:100%;margin:8px 0;-webkit-overflow-scrolling:touch}
+.msg .content .md-table-wrap table{margin:0}
+.msg .content table{border-collapse:collapse;margin:8px 0;max-width:100%}
 .msg .content th,.msg .content td{border:1px solid var(--border);padding:6px 10px;text-align:left}
 .msg .content th{background:var(--bg-2)}
 .msg .content blockquote{border-left:3px solid var(--accent);padding-left:10px;color:var(--fg-2);margin:8px 0}
@@ -1041,7 +1057,11 @@ function renderMarkdown(text){
     .replace(/\\\(([\s\S]+?)\\\)/g,(_,m)=>{placeholders.push(`$${m}$`);return `@@MATH${placeholders.length-1}@@`;});
   let html = marked.parse(safe);
   html = html.replace(/@@MATH(\d+)@@/g,(_,i)=>placeholders[+i]);
-  html = DOMPurify.sanitize(html,{ADD_ATTR:["target"]});
+  // Wrap markdown tables in a horizontal scroll container so wide tables don't
+  // push the whole chat layout sideways on mobile.
+  html = html.replace(/<table(\s|>)/g, '<div class="md-table-wrap"><table$1')
+             .replace(/<\/table>/g, '</table></div>');
+  html = DOMPurify.sanitize(html,{ADD_ATTR:["target"],ADD_TAGS:["div"]});
   return html;
 }
 function renderMathIn(el){
@@ -2041,7 +2061,10 @@ function setSending(on, phase){
   }
 }
 function autoresize(el){
-  el.style.height="auto"; el.style.height = Math.min(240, el.scrollHeight)+"px";
+  el.style.height="auto";
+  // Honor CSS min-height so PWA standalone mode keeps a tall idle textarea
+  const minH = parseFloat(getComputedStyle(el).minHeight) || 0;
+  el.style.height = Math.min(240, Math.max(minH, el.scrollHeight))+"px";
 }
 
 function applyTheme(){
