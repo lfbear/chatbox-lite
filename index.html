@@ -11,6 +11,9 @@
 <meta name="apple-mobile-web-app-title" content="Chatbox Lite" />
 <meta name="format-detection" content="telephone=no" />
 <title data-i18n="app.title">Chatbox Lite · Multi-Model Chat</title>
+<!-- PWA: inline SVG icon — used by tab favicon, iOS home-screen icon, and webmanifest icons -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjExMiIgZmlsbD0iIzZiOGFhOCIvPjxyZWN0IHg9IjEyOCIgeT0iMTQwIiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjIwMCIgcng9IjQ4IiBmaWxsPSIjZmFmOGYzIi8+PHBvbHlnb24gcG9pbnRzPSIxNzgsMzQwIDIyNiwzNDAgMTg4LDQwMCIgZmlsbD0iI2ZhZjhmMyIvPjxjaXJjbGUgY3g9IjIwOCIgY3k9IjI0MCIgcj0iMTYiIGZpbGw9IiM2YjhhYTgiLz48Y2lyY2xlIGN4PSIyNTYiIGN5PSIyNDAiIHI9IjE2IiBmaWxsPSIjNmI4YWE4Ii8+PGNpcmNsZSBjeD0iMzA0IiBjeT0iMjQwIiByPSIxNiIgZmlsbD0iIzZiOGFhOCIvPjwvc3ZnPg==" />
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjExMiIgZmlsbD0iIzZiOGFhOCIvPjxyZWN0IHg9IjEyOCIgeT0iMTQwIiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjIwMCIgcng9IjQ4IiBmaWxsPSIjZmFmOGYzIi8+PHBvbHlnb24gcG9pbnRzPSIxNzgsMzQwIDIyNiwzNDAgMTg4LDQwMCIgZmlsbD0iI2ZhZjhmMyIvPjxjaXJjbGUgY3g9IjIwOCIgY3k9IjI0MCIgcj0iMTYiIGZpbGw9IiM2YjhhYTgiLz48Y2lyY2xlIGN4PSIyNTYiIGN5PSIyNDAiIHI9IjE2IiBmaWxsPSIjNmI4YWE4Ii8+PGNpcmNsZSBjeD0iMzA0IiBjeT0iMjQwIiByPSIxNiIgZmlsbD0iIzZiOGFhOCIvPjwvc3ZnPg==" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css" />
 <style>
@@ -119,6 +122,20 @@ a{-webkit-tap-highlight-color:transparent}
 .cursor-blink::after{content:"▊";color:var(--accent);animation:blink 1s infinite}
 @keyframes blink{50%{opacity:0}}
 
+/* Context-clear divider — keeps history visible but breaks the LLM context */
+.msg-divider{display:flex;align-items:center;gap:10px;margin:22px 0;color:var(--fg-2);font-size:11.5px}
+.msg-divider::before,.msg-divider::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg-divider .lbl{padding:3px 6px 3px 12px;background:var(--bg-2);border:1px dashed var(--border);border-radius:14px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;max-width:80%;overflow:hidden;text-overflow:ellipsis;transition:border-color .15s,background .15s}
+.msg-divider .lbl .ico{font-size:12px;opacity:.7}
+.msg-divider .lbl .text{overflow:hidden;text-overflow:ellipsis}
+.msg-divider .lbl .x{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;font-size:12px;line-height:1;background:transparent;color:var(--fg-2);cursor:pointer;opacity:0;transition:opacity .15s,background .15s,color .15s;flex-shrink:0;user-select:none;margin-left:2px}
+.msg-divider:hover .lbl{border-style:solid;border-color:var(--accent)}
+.msg-divider:hover .lbl .x{opacity:1}
+.msg-divider .lbl .x:hover{background:var(--danger);color:#fff}
+@media (hover:none){
+  .msg-divider .lbl .x{opacity:.7}
+}
+
 /* 等待首个 token 的占位指示 */
 .typing-dots{display:inline-flex;gap:5px;padding:6px 2px;align-items:center;vertical-align:middle}
 .typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--accent);opacity:.45;animation:typing-bounce 1.25s ease-in-out infinite}
@@ -185,6 +202,7 @@ html[data-theme="dark"] .scroll-bottom-btn{box-shadow:0 2px 12px rgba(0,0,0,.4)}
 .composer-actions{display:flex;align-items:center;gap:4px;padding:0 4px}
 .composer-actions .spacer{flex:1}
 .composer-actions .hint{font-size:11px;color:var(--fg-2)}
+.composer-sep{display:inline-block;width:1px;height:18px;background:var(--border);margin:0 6px;align-self:center;flex-shrink:0}
 .send-btn{background:var(--accent);color:#fff;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center}
 .send-btn:hover{background:var(--accent-2)}
 .send-btn:disabled{background:var(--bg-3);color:var(--fg-2);cursor:not-allowed}
@@ -360,7 +378,6 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
       <span class="title" id="chatTitle">New chat</span>
       <button type="button" class="thinking-toggle" id="thinkingToggle" data-i18n-title="thinking.toggle.title" title="Enable/show model thinking"><span class="sw"></span><span data-i18n="thinking.label">Thinking</span></button>
       <select id="modelSelect" data-i18n-title="model.select.title" title="Select model"></select>
-      <button class="icon-btn" id="clearBtn" data-i18n-title="chat.clear.title" title="Clear current chat">🗑</button>
     </div>
 
     <div class="messages" id="messages"></div>
@@ -374,6 +391,9 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
           <button class="icon-btn" id="attachImageBtn" data-i18n-title="attach.image.title" title="Upload image">🖼</button>
           <button class="icon-btn" id="attachFileBtn" data-i18n-title="attach.file.title" title="Upload file (PDF/Word/TXT/code)">📎</button>
           <input type="file" id="fileInput" multiple style="display:none" />
+          <span class="composer-sep" aria-hidden="true"></span>
+          <button class="icon-btn" id="clearCtxBtn" data-i18n-title="context.clear.title" title="Clear context (Ctrl/⌘+K)">✂</button>
+          <button class="icon-btn" id="clearBtn" data-i18n-title="chat.clear.title" title="Clear current chat">🗑</button>
           <span class="spacer"></span>
           <span class="hint" id="statusHint"></span>
           <button class="send-btn" id="sendBtn" data-i18n-title="send.title" title="Send">➤</button>
@@ -666,7 +686,7 @@ const I18N = {
     "general.historyN.label":"History messages kept (context length)",
     "general.showThinking.label":"Enable and show model thinking",
     "general.showThinking.hint":"When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.",
-    "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br><b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br><b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to \"Settings\" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br><b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br><b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl+N for new chat.<br><br><b>Project</b>: <a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>Author</b>: <a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>",
+    "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br><b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br><b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to \"Settings\" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br><b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br><b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl/⌘+Shift+O for new chat (Ctrl/⌘+N as fallback) / Ctrl/⌘+K to clear context.<br><br><b>Install as desktop app</b>: when this page is served over HTTPS, use Chrome/Edge's ⋮ menu → \"Install Chatbox Lite\", or Safari's Share → \"Add to Dock / Home Screen\".<br><br><b>Project</b>: <a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>Author</b>: <a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>",
     "modal.cancel":"Cancel",
     "modal.save":"Save",
     "drag.overlay":"🗎 Drop files to add to the conversation",
@@ -706,6 +726,11 @@ const I18N = {
     "userName.default":"Me",
     "aiName.default":"AI",
     "vendor.local":"Local",
+    "context.clear":"Clear context",
+    "context.clear.title":"Clear context — start a fresh context, keep history visible (Ctrl/⌘+K)",
+    "context.divider":"Context cleared — previous messages won't be sent to the model",
+    "context.divider.remove":"Remove this divider — restore prior context",
+    "context.empty":"Nothing to clear — context is already fresh.",
     "welcome.title":"Welcome",
     "welcome.greeting":"👋 Hi! I'm **Chatbox Lite** — a single HTML file that talks to many AI models, right from your browser.\n\n**⚡ 30-second setup**\n\n1. Click **⚙ Settings** at the bottom-left\n2. Paste an API Key for any provider — or use local **Ollama** for free\n3. Hit **🔄 Fetch model list** and tick the models you want\n4. Save, then pick a model from the top dropdown ✨\n\n💬 Or just type below — I'll share onboarding tips until you've configured a model.",
     "welcome.q1":"🤔 What is this?",
@@ -797,7 +822,7 @@ const I18N = {
     "general.historyN.label":"历史消息保留条数（控制上下文长度）",
     "general.showThinking.label":"启用并显示模型思考过程",
     "general.showThinking.hint":"关闭后：折叠面板不显示；对 Gemini 2.5 会请求 <code>thinkingBudget:0</code> 节省 token；DeepSeek-R1 的 <code>&lt;think&gt;</code> 段落仍会被剥离不外露。",
-    "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br><b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br><b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入\"设置\"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br><b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br><b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl+N 新建对话。<br><br><b>项目地址</b>：<a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>作者</b>：<a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. 这个项目没有一行代码是作者敲的，全是 Claude 写的——我只是那个在旁边指手画脚的人。🫠</i>",
+    "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br><b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br><b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入\"设置\"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br><b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br><b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl/⌘+Shift+O 新建对话（Ctrl/⌘+N 作兜底）/ Ctrl/⌘+K 清除上下文。<br><br><b>安装为桌面应用</b>：当本页通过 HTTPS 访问时，在 Chrome/Edge 的 ⋮ 菜单选 \"安装 Chatbox Lite\"；Safari 用分享菜单的 \"添加到程序坞 / 主屏幕\"。<br><br><b>项目地址</b>：<a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>作者</b>：<a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. 这个项目没有一行代码是作者敲的，全是 Claude 写的——我只是那个在旁边指手画脚的人。🫠</i>",
     "modal.cancel":"取消",
     "modal.save":"保存",
     "drag.overlay":"🗎 拖放文件以添加到对话",
@@ -837,6 +862,11 @@ const I18N = {
     "userName.default":"我",
     "aiName.default":"AI",
     "vendor.local":"本地",
+    "context.clear":"清除上下文",
+    "context.clear.title":"清除上下文 —— 开启新上下文，保留可见历史（Ctrl/⌘+K）",
+    "context.divider":"上下文已清除 —— 之前的消息不会再发送给模型",
+    "context.divider.remove":"移除这条分隔线 —— 恢复之前的上下文",
+    "context.empty":"无需清除 —— 上下文已是新的。",
     "welcome.title":"欢迎",
     "welcome.greeting":"👋 你好！我是 **Chatbox Lite** —— 一个单文件 HTML，在浏览器里让你直连各家 AI 模型。\n\n**⚡ 30 秒上手**\n\n1. 点左下角 **⚙ 设置**\n2. 填一个供应商的 API Key —— 或者用本地 **Ollama**（免费）\n3. 点 **🔄 获取模型列表** 勾选要用的模型\n4. 保存，然后在顶部下拉里选择模型 ✨\n\n💬 也可以直接在下面问我，配置完成前我会给你一些上手贴士。",
     "welcome.q1":"🤔 这是什么？",
@@ -882,6 +912,7 @@ function setLang(lang){
   renderChatList();
   renderMessages();
   updateTopBar();
+  if(typeof setupPWA === "function") setupPWA();
 }
 
 /* ------------------------- Welcome chat ------------------------- */
@@ -1039,6 +1070,43 @@ function switchChat(id){
   closeMobileSidebar();
 }
 
+/* Clear the LLM context but keep visible history. Inserts a divider marker. */
+function clearContext(){
+  const chat = currentChat();
+  if(!chat || !chat.messages.length) return;
+  // No-op if last visible message is already a divider, or only dividers/empty since last divider
+  const last = chat.messages[chat.messages.length-1];
+  if(last && last.role === "divider"){
+    flashStatus(t("context.empty"));
+    return;
+  }
+  // Avoid clearing inside the welcome chat — it has no real LLM context
+  if(chat.isWelcome && !hasConfiguredLLM()){
+    flashStatus(t("context.empty"));
+    return;
+  }
+  chat.messages.push({ role:"divider", time: Date.now() });
+  saveState(); renderMessages();
+}
+
+/* Undo a previous context-clear: remove the divider at idx */
+function removeDivider(idx){
+  const chat = currentChat();
+  if(!chat) return;
+  if(chat.messages[idx]?.role !== "divider") return;
+  chat.messages.splice(idx, 1);
+  saveState(); renderMessages();
+}
+
+/* Briefly flash a hint in the composer status area */
+function flashStatus(text, ms=1600){
+  const hint = document.getElementById("statusHint");
+  if(!hint) return;
+  hint.textContent = text;
+  clearTimeout(flashStatus._t);
+  flashStatus._t = setTimeout(()=>{ if(hint.textContent === text) hint.textContent = ""; }, ms);
+}
+
 /* ------------------------- Models / Providers ------------------------- */
 function parseModelLines(text){
   return (text||"").split("\n").map(l=>l.replace(/#.*$/,"").trim()).filter(Boolean);
@@ -1191,6 +1259,22 @@ function deriveAvatarText(name){
   return chars[0];
 }
 function renderMessageEl(m, idx){
+  // Context divider — visual-only marker, not sent to the model
+  if(m.role === "divider"){
+    const d = document.createElement("div");
+    d.className = "msg-divider";
+    const lbl = document.createElement("span"); lbl.className = "lbl";
+    const ico = document.createElement("span"); ico.className = "ico"; ico.textContent = "✂";
+    const text = document.createElement("span"); text.className = "text"; text.textContent = t("context.divider");
+    const x = document.createElement("span"); x.className = "x"; x.textContent = "×";
+    x.title = t("context.divider.remove");
+    x.setAttribute("role","button");
+    x.setAttribute("aria-label", t("context.divider.remove"));
+    x.addEventListener("click",(e)=>{ e.stopPropagation(); removeDivider(idx); });
+    lbl.appendChild(ico); lbl.appendChild(text); lbl.appendChild(x);
+    d.appendChild(lbl);
+    return d;
+  }
   const div = document.createElement("div"); div.className = "msg "+m.role;
   const userName = state.general.userName || t("userName.default");
   const aiName = state.general.aiName || t("aiName.default");
@@ -1906,7 +1990,13 @@ async function readSSE(response, onEvent){
 
 function lastN(messages){
   const n = Math.max(2, Number(state.general.historyN)||40);
-  return messages.slice(-n);
+  // Honor context dividers: only consider messages after the most recent divider
+  let start = 0;
+  for(let i=messages.length-1;i>=0;i--){
+    if(messages[i].role === "divider"){ start = i+1; break; }
+  }
+  const slice = messages.slice(start).filter(m=>m.role !== "divider");
+  return slice.slice(-n);
 }
 
 /* ------------------------- UI wiring ------------------------- */
@@ -2122,10 +2212,48 @@ function importData(file){
   r.readAsText(file);
 }
 
+/* ------------------------- PWA manifest (inline, single-file) ------------------------- */
+function setupPWA(){
+  try{
+    // Reuse the same SVG icon that's already inlined in the head
+    const iconLink = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+    const iconUrl = iconLink ? iconLink.href : "";
+    if(!iconUrl) return;
+    // Compute scope = directory of current document
+    const dir = location.pathname.replace(/[^/]*$/, "") || "/";
+    const manifest = {
+      name: "Chatbox Lite",
+      short_name: "Chatbox Lite",
+      description: "Single-file browser-based multi-model chat",
+      start_url: location.pathname + location.search,
+      scope: dir,
+      display: "standalone",
+      orientation: "any",
+      background_color: "#faf8f3",
+      theme_color: "#6b8aa8",
+      lang: curLang()==="en" ? "en" : "zh-CN",
+      icons: [
+        { src: iconUrl, sizes: "any", type: "image/svg+xml", purpose: "any" },
+        { src: iconUrl, sizes: "any", type: "image/svg+xml", purpose: "maskable" }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
+    const url = URL.createObjectURL(blob);
+    let link = document.querySelector('link[rel="manifest"]');
+    if(!link){
+      link = document.createElement("link");
+      link.rel = "manifest";
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }catch(e){ /* PWA setup is best-effort */ }
+}
+
 /* ------------------------- Init ------------------------- */
 function init(){
   applyTheme();
   applyI18n();
+  setupPWA();
   if(state.chats.length===0){
     if(hasConfiguredLLM()) newChat();
     else createWelcomeChat();
@@ -2160,6 +2288,7 @@ function init(){
     const c = currentChat(); if(!c) return;
     if(confirm(t("confirm.clearChat"))){ c.messages=[]; saveState(); renderMessages(); }
   };
+  document.getElementById("clearCtxBtn").onclick = ()=>clearContext();
   document.getElementById("menuBtn").onclick = openMobileSidebar;
   document.getElementById("mobileMask").onclick = closeMobileSidebar;
   updateThinkingToggle();
@@ -2239,7 +2368,18 @@ function init(){
 
   // Keyboard
   window.addEventListener("keydown",(e)=>{
-    if((e.ctrlKey||e.metaKey) && e.key==="n"){ e.preventDefault(); newChat(); }
+    const mod = e.ctrlKey || e.metaKey;
+    if(!mod || e.altKey) return;
+    const k = (e.key||"").toLowerCase();
+    if(!e.shiftKey){
+      // Cmd/Ctrl+N is OS-intercepted in most browsers; left as a best-effort
+      // for standalone PWAs / Electron-like hosts that don't reserve it.
+      if(k==="n"){ e.preventDefault(); newChat(); return; }
+      if(k==="k"){ e.preventDefault(); clearContext(); return; }
+    } else {
+      // Browser-safe alternative for new chat
+      if(k==="o"){ e.preventDefault(); newChat(); return; }
+    }
   });
 }
 
