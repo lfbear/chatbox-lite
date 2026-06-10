@@ -85,6 +85,38 @@ html[data-theme="dark"]{
 }
 html[data-theme="dark"] .page-loader{ background:#7aabff; box-shadow:0 0 6px rgba(122,171,255,.55); }
 
+/* Full-screen overlay that bridges the iOS PWA reload gap. iOS keeps the old
+   DOM visible-but-frozen during location.reload(); this overlay is part of
+   that DOM so it stays on screen and clearly says "refreshing", preventing
+   the user from thinking the UI is still interactive. */
+.reload-overlay{
+  position:fixed;
+  inset:0;
+  background:var(--bg);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:14px;
+  z-index:10001;
+  padding-top:env(safe-area-inset-top,0);
+  padding-bottom:env(safe-area-inset-bottom,0);
+  animation:reloadOvIn .12s ease-out;
+}
+.reload-overlay .reload-spinner{
+  width:34px;height:34px;
+  border:3px solid var(--bg-3);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:reloadspin .9s linear infinite;
+}
+.reload-overlay .reload-label{
+  font-size:13px;
+  color:var(--fg-2);
+  letter-spacing:.02em;
+}
+@keyframes reloadOvIn{ from{ opacity:0; } to{ opacity:1; } }
+
 html,body{height:100%;margin:0;font-family:"Inter","-apple-system",BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-feature-settings:"cv11","ss01";letter-spacing:0.01em;-webkit-text-size-adjust:100%;text-size-adjust:100%;overscroll-behavior:none}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 input,textarea,select{font-family:inherit;color:inherit;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;outline:none}
@@ -2746,13 +2778,24 @@ function applyStandaloneClass(){
 }
 
 /* ------------------------- Reload (works inside installed PWA without browser chrome) ------------------------- */
+function showReloadOverlay(){
+  if(document.getElementById("reloadOverlay")) return;
+  const ov = document.createElement("div");
+  ov.id = "reloadOverlay";
+  ov.className = "reload-overlay";
+  const spinner = document.createElement("div"); spinner.className = "reload-spinner"; spinner.setAttribute("aria-hidden","true");
+  const label = document.createElement("div"); label.className = "reload-label"; label.textContent = t("reload.refreshing");
+  ov.appendChild(spinner); ov.appendChild(label);
+  document.body.appendChild(ov);
+}
 function reloadApp(){
   const ta = document.getElementById("input");
   const hasInput = (ta && ta.value.trim().length>0) || pendingAttachments.length>0;
   if(hasInput && !confirm(t("reload.confirm"))) return;
   const btn = document.getElementById("reloadBtn");
   if(btn) btn.classList.add("spin");
-  // Give the spinner a chance to render before navigation tears down the DOM
+  showReloadOverlay();
+  // Give the overlay a chance to paint before navigation tears down the DOM
   setTimeout(()=>{ location.reload(); }, 80);
 }
 
@@ -2816,6 +2859,8 @@ function setupPullToRefresh(){
       ind.style.transform = "translateY(8px)";
       ind.style.opacity = 1;
       ind.querySelector(".ptr-text").textContent = t("reload.refreshing");
+      // Show full-screen overlay so iOS doesn't leave the (stale) UI looking interactive
+      showReloadOverlay();
       setTimeout(()=>{ location.reload(); }, 220);
     }else{
       ind.style.transition = "transform .2s, opacity .2s";
