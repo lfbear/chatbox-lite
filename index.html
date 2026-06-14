@@ -168,6 +168,12 @@ body.standalone .pwa-only{display:inline-flex}
 .ptr-indicator.refreshing .ptr-icon{animation:reloadspin .9s linear infinite;color:var(--accent)}
 .new-chat{margin:8px;padding:10px;background:var(--accent);color:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:14px}
 .new-chat:hover{background:var(--accent-2)}
+.new-chat.scenario{margin-top:0;background:var(--bg-3);color:var(--fg);border:1px solid var(--border)}
+.new-chat.scenario:hover{background:var(--bg-2)}
+.scenario-presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:6px}
+.scenario-preset{display:flex;align-items:center;gap:6px;padding:8px 10px;background:var(--bg-2);border:1px solid var(--border);border-radius:8px;font-size:12px;cursor:pointer;text-align:left}
+.scenario-preset:hover{background:var(--bg-3);border-color:var(--accent)}
+.scenario-preset .emoji{font-size:15px}
 .chat-list{flex:1;overflow-y:auto;padding:4px 8px}
 .chat-item{padding:8px 10px;border-radius:8px;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg);margin-bottom:2px;cursor:pointer;position:relative}
 .chat-item:hover{background:var(--bg-3)}
@@ -176,6 +182,9 @@ body.standalone .pwa-only{display:inline-flex}
 .chat-item .actions{display:none;gap:2px}
 .chat-item:hover .actions{display:flex}
 .chat-item .actions .icon-btn{width:22px;height:22px}
+.chat-item.dragging{opacity:.45}
+.chat-item.drag-before{box-shadow:inset 0 2px 0 0 var(--accent)}
+.chat-item.drag-after{box-shadow:inset 0 -2px 0 0 var(--accent)}
 .sidebar-footer{padding:8px;border-top:1px solid var(--border);display:flex;gap:6px}
 .sidebar-footer button{flex:1;padding:8px;border-radius:8px;color:var(--fg-2);font-size:13px;display:flex;align-items:center;justify-content:center;gap:4px}
 .sidebar-footer button:hover{background:var(--bg-3);color:var(--fg)}
@@ -482,6 +491,7 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
       <button class="icon-btn" id="themeBtn" data-i18n-title="theme.toggle.title" title="Toggle theme">🌓</button>
     </div>
     <button class="new-chat" id="newChatBtn" data-i18n="sidebar.newChat">＋ New chat</button>
+    <button class="new-chat scenario" id="newScenarioBtn" data-i18n="sidebar.newScenario">🎬 New scenario</button>
     <div class="chat-list" id="chatList"></div>
     <div class="sidebar-footer">
       <button id="settingsBtn" data-i18n="sidebar.settings">⚙ Settings</button>
@@ -497,6 +507,7 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
     <div class="top-bar">
       <button class="icon-btn menu-btn" id="menuBtn">☰</button>
       <span class="title" id="chatTitle">New chat</span>
+      <button class="icon-btn" id="scenarioBtn" data-i18n-title="scenario.edit.title" title="Edit scenario" style="display:none">🎬</button>
       <button type="button" class="thinking-toggle" id="thinkingToggle" data-i18n-title="thinking.toggle.title" title="Enable/show model thinking"><span class="sw"></span><span data-i18n="thinking.label">Thinking</span></button>
       <select id="modelSelect" data-i18n-title="model.select.title" title="Select model"></select>
     </div>
@@ -650,6 +661,8 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
           <div class="form-row"><label data-i18n="general.maxTokens.label">Max output tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" inputmode="numeric" data-i18n-placeholder="general.maxTokens.placeholder" placeholder="Leave empty to use model default" /></div>
         </div>
         <div class="form-row"><label data-i18n="general.historyN.label">History messages kept (context length)</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" inputmode="numeric" /></div>
+        <div class="form-row"><label><input id="cfg_scenario_autocompress" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.autoCompress.label">Auto-compress scenario memory</span></label><span class="hint" data-i18n="general.autoCompress.hint">For 🎬 scenario chats: when the live context exceeds the size below, older messages are automatically summarized into long-term memory.</span></div>
+        <div class="form-row"><label data-i18n="general.compressChars.label">Auto-compress threshold (characters of live context)</label><input id="cfg_scenario_compress_chars" type="number" min="500" step="100" value="4000" inputmode="numeric" /></div>
         <div class="form-row"><label><input id="cfg_show_thinking" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.showThinking.label">Enable and show model thinking</span></label><span class="hint" data-i18n-html="general.showThinking.hint">When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.</span></div>
       </div>
 
@@ -670,6 +683,43 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
     <div class="modal-footer">
       <button class="btn ghost" id="cancelSettings" data-i18n="modal.cancel">Cancel</button>
       <button class="btn primary" id="saveSettings" data-i18n="modal.save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scenario Modal -->
+<div class="modal-mask hide" id="scenarioModal">
+  <div class="modal">
+    <div class="modal-header"><h3 id="scenarioModalTitle" data-i18n="scenario.modal.titleNew">New scenario chat</h3><button class="icon-btn" id="closeScenario">✕</button></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label data-i18n="scenario.presets.label">💡 Golden presets (click to apply)</label>
+        <div class="scenario-presets" id="scenarioPresets"></div>
+      </div>
+      <div class="form-row"><label data-i18n="scenario.title.label">Chat title</label><input id="sc_title" data-i18n-placeholder="scenario.title.placeholder" placeholder="e.g. 🎮 Discord gaming" /></div>
+      <div class="form-row">
+        <label data-i18n="scenario.lang.label">Target language (for translation scenarios)</label>
+        <select id="sc_lang">
+          <option value="">—</option>
+          <option value="English">English</option>
+          <option value="日本語 (Japanese)">日本語 (Japanese)</option>
+          <option value="한국어 (Korean)">한국어 (Korean)</option>
+          <option value="Español (Spanish)">Español (Spanish)</option>
+          <option value="Français (French)">Français (French)</option>
+          <option value="Deutsch (German)">Deutsch (German)</option>
+          <option value="Русский (Russian)">Русский (Russian)</option>
+          <option value="中文 (Chinese)">中文 (Chinese)</option>
+        </select>
+      </div>
+      <div class="form-row"><label data-i18n="scenario.desc.label">Scenario & tone instructions (the AI's persona/rules)</label><textarea id="sc_desc" rows="6" data-i18n-placeholder="scenario.desc.placeholder" placeholder="e.g. Casual Discord chat with overseas gamers; very colloquial tone, use abbreviations (lol) and emojis."></textarea></div>
+      <div class="form-row" id="sc_summaryRow" style="display:none">
+        <label data-i18n="scenario.summary.label">🧠 Compressed memory (auto-generated, editable)</label>
+        <textarea id="sc_summary" rows="4" data-i18n-placeholder="scenario.summary.placeholder" placeholder="No memory compressed yet. Use the 🧠 button in the composer to compress history."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn ghost" id="cancelScenario" data-i18n="modal.cancel">Cancel</button>
+      <button class="btn primary" id="saveScenario" data-i18n="scenario.save">Create chat</button>
     </div>
   </div>
 </div>
@@ -725,7 +775,9 @@ const DEFAULT_STATE = {
     historyN:40,
     showThinking:true,
     userName:"",
-    aiName:"AI"
+    aiName:"AI",
+    scenarioAutoCompress:true,
+    scenarioCompressChars:4000
   },
   lastModel:""
 };
@@ -749,6 +801,28 @@ const I18N = {
     "mermaid.error":"Diagram render error",
     "mermaid.loading":"Rendering diagram…",
     "sidebar.newChat":"＋ New chat",
+    "sidebar.newScenario":"🎬 New scenario",
+    "scenario.modal.titleNew":"New scenario chat",
+    "scenario.modal.titleEdit":"Edit scenario",
+    "scenario.presets.label":"💡 Golden presets (click to apply)",
+    "scenario.title.label":"Chat title",
+    "scenario.title.placeholder":"e.g. 🎮 Discord gaming",
+    "scenario.lang.label":"Target language (optional — for translation scenarios)",
+    "scenario.desc.label":"Scenario & tone instructions (the AI's persona / rules)",
+    "scenario.desc.placeholder":"e.g. Casual Discord chat with overseas gamers; very colloquial tone, use abbreviations (lol) and emojis.",
+    "scenario.summary.label":"🧠 Compressed memory (auto-generated, editable)",
+    "scenario.summary.placeholder":"No memory compressed yet. Use the 🧠 button in the composer to compress history.",
+    "scenario.save":"Create chat",
+    "scenario.save.edit":"Save",
+    "scenario.edit.title":"Edit scenario settings",
+    "scenario.desc.required":"Please enter the scenario / tone instructions.",
+    "scenario.compress.title":"Compress earlier messages into memory",
+    "scenario.compress.running":"Compressing memory…",
+    "scenario.compress.tooFew":"Need at least 2 messages to compress.",
+    "scenario.compress.done":"Memory updated · earlier context compressed",
+    "scenario.compress.failed":"Compression failed: {0}",
+    "scenario.compress.confirm":"Compress the current context into long-term memory? Earlier messages will stay visible but won't be re-sent to the model.",
+    "scenario.badge":"Scenario",
     "sidebar.settings":"⚙ Settings",
     "sidebar.export":"⬇ Export",
     "sidebar.import":"⬆ Import",
@@ -817,6 +891,9 @@ const I18N = {
     "general.maxTokens.label":"Max output tokens",
     "general.maxTokens.placeholder":"Leave empty to use model default",
     "general.historyN.label":"History messages kept (context length)",
+    "general.autoCompress.label":"Auto-compress scenario memory",
+    "general.autoCompress.hint":"For 🎬 scenario chats: when the live context exceeds the size below, older messages are automatically summarized into long-term memory.",
+    "general.compressChars.label":"Auto-compress threshold (characters of live context)",
     "general.showThinking.label":"Enable and show model thinking",
     "general.showThinking.hint":"When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.",
     "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br><b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br><b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to \"Settings\" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br><b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br><b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl/⌘+Shift+O for new chat (Ctrl/⌘+N as fallback) / Ctrl/⌘+K to clear context.<br><br><b>Install as desktop app</b>: when this page is served over HTTPS, use Chrome/Edge's ⋮ menu → \"Install Chatbox Lite\", or Safari's Share → \"Add to Dock / Home Screen\". Once installed, refresh by tapping the ↻ in the sidebar or pulling down on the message list.<br><br><b>Project</b>: <a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>Author</b>: <a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>",
@@ -897,6 +974,28 @@ const I18N = {
     "mermaid.error":"图表渲染失败",
     "mermaid.loading":"渲染图表中…",
     "sidebar.newChat":"＋ 新建对话",
+    "sidebar.newScenario":"🎬 新建场景对话",
+    "scenario.modal.titleNew":"新建场景对话",
+    "scenario.modal.titleEdit":"编辑场景配置",
+    "scenario.presets.label":"💡 推荐黄金场景模版（点击一键套用）",
+    "scenario.title.label":"对话标题",
+    "scenario.title.placeholder":"例如：🎮 Discord 游戏联机",
+    "scenario.lang.label":"目标语言（可选 —— 用于翻译类场景）",
+    "scenario.desc.label":"翻译场景 & 语气润色设定（定制 AI 的角色 / 规则）",
+    "scenario.desc.placeholder":"例如：在 Discord 上和老外联机聊天，语气极度口语化，多用缩写(lol)和表情。",
+    "scenario.summary.label":"🧠 压缩记忆（自动生成，可编辑）",
+    "scenario.summary.placeholder":"尚未压缩任何记忆。点击输入框旁的 🧠 按钮可压缩历史。",
+    "scenario.save":"创建对话",
+    "scenario.save.edit":"保存",
+    "scenario.edit.title":"编辑场景设定",
+    "scenario.desc.required":"请填写场景 / 语气设定。",
+    "scenario.compress.title":"将较早的消息压缩进记忆",
+    "scenario.compress.running":"正在压缩记忆…",
+    "scenario.compress.tooFew":"至少需要 2 条消息才能压缩。",
+    "scenario.compress.done":"记忆已更新 · 较早的上下文已压缩",
+    "scenario.compress.failed":"压缩失败：{0}",
+    "scenario.compress.confirm":"将当前上下文压缩进长期记忆？较早的消息仍会显示，但不再发送给模型。",
+    "scenario.badge":"场景",
     "sidebar.settings":"⚙ 设置",
     "sidebar.export":"⬇ 导出",
     "sidebar.import":"⬆ 导入",
@@ -965,6 +1064,9 @@ const I18N = {
     "general.maxTokens.label":"最大输出 tokens",
     "general.maxTokens.placeholder":"留空使用模型默认",
     "general.historyN.label":"历史消息保留条数（控制上下文长度）",
+    "general.autoCompress.label":"自动压缩场景记忆",
+    "general.autoCompress.hint":"针对 🎬 场景对话：当实时上下文超过下方设定的大小时，自动把较早的消息总结进长期记忆。",
+    "general.compressChars.label":"自动压缩阈值（实时上下文字符数）",
     "general.showThinking.label":"启用并显示模型思考过程",
     "general.showThinking.hint":"关闭后：折叠面板不显示；对 Gemini 2.5 会请求 <code>thinkingBudget:0</code> 节省 token；DeepSeek-R1 的 <code>&lt;think&gt;</code> 段落仍会被剥离不外露。",
     "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br><b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br><b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入\"设置\"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br><b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br><b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl/⌘+Shift+O 新建对话（Ctrl/⌘+N 作兜底）/ Ctrl/⌘+K 清除上下文。<br><br><b>安装为桌面应用</b>：当本页通过 HTTPS 访问时，在 Chrome/Edge 的 ⋮ 菜单选 \"安装 Chatbox Lite\"；Safari 用分享菜单的 \"添加到程序坞 / 主屏幕\"。安装后想刷新，点侧栏的 ↻ 按钮，或在消息列表顶端下拉。<br><br><b>项目地址</b>：<a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>作者</b>：<a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. 这个项目没有一行代码是作者敲的，全是 Claude 写的——我只是那个在旁边指手画脚的人。🫠</i>",
@@ -1638,6 +1740,233 @@ function flashStatus(text, ms=1600){
   flashStatus._t = setTimeout(()=>{ if(hint.textContent === text) hint.textContent = ""; }, ms);
 }
 
+/* ------------------------- Scenario chats (context + memory) ------------------------- */
+/* A scenario chat carries a reusable context definition (persona / tone / target
+   language) plus a compressed long-term memory. The effective system prompt is
+   composed from these on every request, mirroring ContextTranslate's design. */
+const SCENARIO_PRESETS = [
+  { emoji:"🎮", title:"Discord 游戏联机", lang:"English",
+    desc:"在 Discord 上和海外网友联机打游戏打字聊天，语气要极度口语化、搞笑自然，多用网络流行缩写（如 lol, tbh, ggwp, cracked）和表情符号。" },
+  { emoji:"💻", title:"GitHub 开源协作", lang:"English",
+    desc:"在 GitHub Issue 或 Pull Request 中与全球开源开发者进行技术讨论，语气要求专业、严谨、客观，礼貌且精炼，使用地道的软件工程术语。" },
+  { emoji:"📧", title:"外企商务邮件", lang:"English",
+    desc:"撰写或回复跨国团队的商务协作邮件，语气要求专业、得体、礼貌且职场化，人称称呼得当地道，使用标准的职场英文格式。" },
+  { emoji:"🌸", title:"二次元同好交流", lang:"日本語 (Japanese)",
+    desc:"在社交平台与日本二次元/动漫同好交流，语气要极其热情、软萌，多用语气词和二次元常用梗，结尾加上符合氛围的颜文字（如 🌸, www, 🥺）。" },
+  { emoji:"✈️", title:"日常旅游交际", lang:"日本語 (Japanese)",
+    desc:"用于日常旅行、问路、点餐或简单的社交聊天，语气要求简单、清晰、礼貌且实用，避免复杂的书面语，多用常用的口语交际句式。" },
+  { emoji:"🗣️", title:"地道口语陪练", lang:"English",
+    desc:"扮演一位友好的母语外教，用自然地道的口语和我聊天练习。先简短回应我的内容，再自然地把话题延续下去；如果我有明显的表达错误，用括号温和地给出更地道的说法。" }
+];
+
+/* Compose the system prompt actually sent to the model. */
+function effectiveSystemPrompt(chat){
+  if(chat && chat.kind === "scenario"){
+    return buildScenarioSystemPrompt(chat.scenario||{}, chat.contextSummary||"");
+  }
+  return chat ? chat.systemPrompt : "";
+}
+
+function buildScenarioSystemPrompt(scenario, summary){
+  const lang = (scenario.lang||"").trim();
+  const desc = (scenario.desc||"").trim();
+  let p = "You are a context-aware conversational assistant operating inside a user-defined scenario.\n\n";
+  p += "SCENARIO & TONE INSTRUCTIONS (follow these strictly):\n\"" + (desc || "(none specified)") + "\"";
+  if(lang){
+    p += "\n\nTARGET LANGUAGE: Always respond in " + lang + ", using native-level, natural phrasing appropriate to the scenario above. If the user writes in another language, treat it as content to respond to (or translate, if that is the scenario's intent) — your reply itself stays in " + lang + ".";
+  }
+  if((summary||"").trim()){
+    p += "\n\nLONG-TERM MEMORY (compressed summary of earlier conversation — keep it consistent: relationships, names, pronouns, agreed facts and terminology):\n\"" + summary.trim().replace(/\n/g, " ") + "\"";
+  }
+  p += "\n\nStay in character and maintain continuity with both the recent messages and the long-term memory above.";
+  return p;
+}
+
+/* Messages in the currently-active context window (after the last divider, excluding dividers). */
+function activeWindowMessages(chat){
+  const msgs = chat.messages || [];
+  let start = 0;
+  for(let i=msgs.length-1;i>=0;i--){ if(msgs[i].role==="divider"){ start=i+1; break; } }
+  return msgs.slice(start).filter(m=>(m.role==="user"||m.role==="assistant") && (m.content||"").trim());
+}
+
+let _editingScenarioId = null;
+
+function newScenarioChat(){ openScenarioModal(null); }
+
+function renderScenarioPresets(){
+  const box = document.getElementById("scenarioPresets");
+  box.innerHTML = "";
+  SCENARIO_PRESETS.forEach(p=>{
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "scenario-preset";
+    b.innerHTML = `<span class="emoji">${p.emoji}</span><span>${escapeHtml(p.title)}</span>`;
+    b.addEventListener("click",()=>{
+      document.getElementById("sc_title").value = `${p.emoji} ${p.title}`;
+      document.getElementById("sc_lang").value = p.lang || "";
+      document.getElementById("sc_desc").value = p.desc || "";
+    });
+    box.appendChild(b);
+  });
+}
+
+function openScenarioModal(editId){
+  _editingScenarioId = editId || null;
+  renderScenarioPresets();
+  const titleEl = document.getElementById("scenarioModalTitle");
+  const saveEl = document.getElementById("saveScenario");
+  const summaryRow = document.getElementById("sc_summaryRow");
+  if(editId){
+    const c = state.chats.find(x=>x.id===editId);
+    const sc = (c && c.scenario) || {};
+    document.getElementById("sc_title").value = c?.title || "";
+    document.getElementById("sc_lang").value = sc.lang || "";
+    document.getElementById("sc_desc").value = sc.desc || "";
+    document.getElementById("sc_summary").value = c?.contextSummary || "";
+    summaryRow.style.display = "";
+    titleEl.textContent = t("scenario.modal.titleEdit");
+    saveEl.textContent = t("scenario.save.edit");
+  }else{
+    const first = SCENARIO_PRESETS[0];
+    document.getElementById("sc_title").value = `${first.emoji} ${first.title}`;
+    document.getElementById("sc_lang").value = first.lang;
+    document.getElementById("sc_desc").value = first.desc;
+    document.getElementById("sc_summary").value = "";
+    summaryRow.style.display = "none";
+    titleEl.textContent = t("scenario.modal.titleNew");
+    saveEl.textContent = t("scenario.save");
+  }
+  document.getElementById("scenarioModal").classList.remove("hide");
+}
+function closeScenarioModal(){ document.getElementById("scenarioModal").classList.add("hide"); _editingScenarioId = null; }
+
+function saveScenario(){
+  const title = document.getElementById("sc_title").value.trim();
+  const lang = document.getElementById("sc_lang").value;
+  const desc = document.getElementById("sc_desc").value.trim();
+  if(!desc){ alert(t("scenario.desc.required")); return; }
+  const scenario = { lang, desc };
+  if(_editingScenarioId){
+    const c = state.chats.find(x=>x.id===_editingScenarioId);
+    if(c){
+      c.title = title || c.title;
+      c.scenario = scenario;
+      c.contextSummary = document.getElementById("sc_summary").value.trim();
+    }
+    closeScenarioModal();
+    saveState(); renderChatList(); renderMessages(); updateTopBar();
+  }else{
+    const id = uid();
+    const chat = {
+      id, title: title || t("chat.new.default"),
+      model: state.lastModel || "",
+      kind: "scenario", scenario, contextSummary: "",
+      messages: [], createdAt: Date.now()
+    };
+    state.chats.unshift(chat);
+    state.activeChatId = id;
+    closeScenarioModal();
+    saveState(); populateModelSelect(); renderChatList(); renderMessages(); updateTopBar();
+    closeMobileSidebar();
+    if(window.matchMedia && !window.matchMedia("(max-width: 768px)").matches){
+      document.getElementById("input").focus();
+    }
+  }
+}
+
+/* Show/hide scenario-only controls for the active chat. */
+function updateScenarioUI(){
+  const c = currentChat();
+  const isScenario = !!(c && c.kind === "scenario");
+  const sb = document.getElementById("scenarioBtn");
+  if(sb) sb.style.display = isScenario ? "" : "none";
+}
+
+/* One-shot (non-streaming-consumed) completion reusing the provider callers. */
+async function oneShotLLM(modelId, systemPrompt, userContent, signal){
+  const [provider, model] = (modelId||"").split("::");
+  const cfg = state.config[provider];
+  if(!cfg) throw new Error("No provider configured");
+  const tmpChat = { systemPrompt, messages:[{role:"user", content:userContent, time:Date.now()}] };
+  let out = "";
+  const onContent = (d)=>{ out += d; };
+  const onReasoning = ()=>{};
+  if(provider==="ollama"){
+    const useNative = await pickLocalProtocol(cfg);
+    if(useNative) await callOllamaNative({cfg, model, chat:tmpChat, signal, onContent, onReasoning});
+    else await callOpenAICompat({cfg, model, chat:tmpChat, signal, onContent, onReasoning, provider:"ollama"});
+  }else if(provider==="openai"){ await callOpenAICompat({cfg, model, chat:tmpChat, signal, onContent, onReasoning, provider}); }
+  else if(provider==="claude"){ await callClaude({cfg, model, chat:tmpChat, signal, onContent, onReasoning}); }
+  else if(provider==="gemini"){ await callGemini({cfg, model, chat:tmpChat, signal, onContent, onReasoning}); }
+  else throw new Error("Unknown provider: " + provider);
+  return out.trim();
+}
+
+const SCENARIO_SUMMARIZER_PROMPT =
+`You are a conversation memory compression engine. Read the prior memory (if any) and the new conversation turns, then output an UPDATED consolidated memory in under 120 words.
+
+Capture and preserve:
+1. The established relationship, persona and tone.
+2. Names, nicknames, pronouns and agreed terminology.
+3. Concrete facts, decisions, preferences and open threads.
+
+Merge the new turns into the prior memory; drop nothing important, deduplicate, keep it factual. Write in the same language the conversation mainly uses. Output ONLY a concise bulleted list — no preamble, no commentary.`;
+
+/* Keep the most recent N real messages live; everything older gets folded into memory. */
+const SCENARIO_KEEP_RECENT = 4;
+let _autoCompressing = false;
+
+/* Approximate "context size" of the active window, in characters. */
+function estimateWindowSize(chat){
+  return activeWindowMessages(chat).reduce((n,m)=>n + ((m.content||"").length), 0);
+}
+
+/* Core compression: fold the older part of the active window into chat.contextSummary,
+   leaving a divider before the kept-recent messages. Returns true on success. */
+async function runCompression(chat, opts={}){
+  const keepRecent = Math.max(0, opts.keepRecent ?? 0);
+  const win = activeWindowMessages(chat);
+  const toCompress = keepRecent > 0 ? win.slice(0, Math.max(0, win.length - keepRecent)) : win.slice();
+  if(toCompress.length < 2){ if(!opts.silent) flashStatus(t("scenario.compress.tooFew")); return false; }
+  const modelId = chat.model || document.getElementById("modelSelect").value || state.lastModel;
+  if(!modelId){ if(!opts.silent) alert(t("alert.modelRequiredSend")); return false; }
+
+  flashStatus(t("scenario.compress.running"), 60000);
+  const ctrl = new AbortController();
+  let dump = "";
+  toCompress.forEach(m=>{ dump += `${m.role === "user" ? "User" : "Assistant"}: ${m.content||""}\n\n`; });
+  let userContent = "";
+  if((chat.contextSummary||"").trim()) userContent += "【Prior memory】:\n" + chat.contextSummary.trim() + "\n\n";
+  userContent += "【New conversation turns to merge】:\n" + dump;
+
+  const summary = await oneShotLLM(modelId, SCENARIO_SUMMARIZER_PROMPT, userContent, ctrl.signal);
+  if(!summary) return false;
+  chat.contextSummary = summary;
+  // Drop the compressed turns from the active window (keep them visible) via a divider.
+  const firstKeep = keepRecent > 0 ? win[win.length - keepRecent] : null;
+  const at = firstKeep ? chat.messages.indexOf(firstKeep) : -1;
+  if(at >= 0) chat.messages.splice(at, 0, { role:"divider", time: Date.now() });
+  else if(chat.messages[chat.messages.length-1]?.role !== "divider") chat.messages.push({ role:"divider", time: Date.now() });
+  saveState(); renderMessages();
+  flashStatus(t("scenario.compress.done"));
+  return true;
+}
+
+/* Called after each scenario reply: auto-fold history into memory once the live
+   context grows past the configured size. No button, no user action required. */
+async function maybeAutoCompress(chat){
+  if(!chat || chat.kind !== "scenario") return;
+  if(state.general.scenarioAutoCompress === false) return;
+  if(_autoCompressing) return;
+  const threshold = Math.max(500, Number(state.general.scenarioCompressChars) || 4000);
+  if(estimateWindowSize(chat) < threshold) return;
+  if(activeWindowMessages(chat).length <= SCENARIO_KEEP_RECENT + 1) return; // too little to gain from
+  _autoCompressing = true;
+  try{ await runCompression(chat, { keepRecent: SCENARIO_KEEP_RECENT, silent: true }); }
+  catch(e){ flashStatus(t("scenario.compress.failed", e.message||String(e)), 4000); }
+  finally{ _autoCompressing = false; }
+}
+
 /* ------------------------- Models / Providers ------------------------- */
 function parseModelLines(text){
   return (text||"").split("\n").map(l=>l.replace(/#.*$/,"").trim()).filter(Boolean);
@@ -1703,24 +2032,73 @@ function populateModelSelect(){
 }
 
 /* ------------------------- Rendering ------------------------- */
+/* ---- Drag to reorder the chat list (desktop pointer drag) ---- */
+let _dragChatId = null;
+function clearDragMarks(){
+  document.querySelectorAll(".chat-item.drag-before,.chat-item.drag-after")
+    .forEach(x=>x.classList.remove("drag-before","drag-after"));
+}
+function moveChat(srcId, targetId, before){
+  if(!srcId || srcId===targetId) return;
+  const arr = state.chats;
+  const from = arr.findIndex(c=>c.id===srcId);
+  if(from<0) return;
+  const [item] = arr.splice(from,1);
+  let to = arr.findIndex(c=>c.id===targetId);
+  if(to<0) arr.push(item);
+  else arr.splice(before ? to : to+1, 0, item);
+  saveState(); renderChatList();
+}
+
 function renderChatList(){
   const list = document.getElementById("chatList");
   list.innerHTML = "";
   for(const c of state.chats){
     const div = document.createElement("div");
     div.className = "chat-item"+(c.id===state.activeChatId?" active":"");
+    div.draggable = true;
+    div.dataset.id = c.id;
+    const icon = c.kind === "scenario" ? "🎬" : "💬";
+    const editBtn = c.kind === "scenario"
+      ? `<button class="icon-btn" data-act="editScenario" title="${escapeHtml(t("scenario.edit.title"))}">⚙</button>`
+      : "";
     div.innerHTML = `
-      <span>💬</span>
+      <span title="${c.kind==="scenario"?escapeHtml(t("scenario.badge")):""}">${icon}</span>
       <span class="title">${escapeHtml(c.title||t("chat.untitled"))}</span>
       <span class="actions">
+        ${editBtn}
         <button class="icon-btn" data-act="rename" title="${escapeHtml(t("chat.action.rename"))}">✎</button>
         <button class="icon-btn" data-act="delete" title="${escapeHtml(t("chat.action.delete"))}">🗑</button>
       </span>`;
     div.addEventListener("click",(e)=>{
       const act = e.target.closest("button")?.dataset.act;
-      if(act==="rename"){ e.stopPropagation(); renameChat(c.id); }
+      if(act==="editScenario"){ e.stopPropagation(); openScenarioModal(c.id); }
+      else if(act==="rename"){ e.stopPropagation(); renameChat(c.id); }
       else if(act==="delete"){ e.stopPropagation(); deleteChat(c.id); }
       else switchChat(c.id);
+    });
+    div.addEventListener("dragstart",(e)=>{
+      _dragChatId = c.id; div.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      try{ e.dataTransfer.setData("text/plain", c.id); }catch{}
+    });
+    div.addEventListener("dragend",()=>{ _dragChatId = null; div.classList.remove("dragging"); clearDragMarks(); });
+    div.addEventListener("dragover",(e)=>{
+      if(!_dragChatId || _dragChatId===c.id) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = "move";
+      const r = div.getBoundingClientRect();
+      const before = e.clientY < r.top + r.height/2;
+      clearDragMarks();
+      div.classList.add(before ? "drag-before" : "drag-after");
+    });
+    div.addEventListener("dragleave",()=>{ div.classList.remove("drag-before","drag-after"); });
+    div.addEventListener("drop",(e)=>{
+      if(!_dragChatId || _dragChatId===c.id) return;
+      e.preventDefault();
+      const r = div.getBoundingClientRect();
+      const before = e.clientY < r.top + r.height/2;
+      clearDragMarks();
+      moveChat(_dragChatId, c.id, before);
     });
     list.appendChild(div);
   }
@@ -1729,6 +2107,7 @@ function renderChatList(){
 function updateTopBar(){
   const c = currentChat();
   document.getElementById("chatTitle").textContent = c?.title || t("chat.new.default");
+  updateScenarioUI();
 }
 
 function renderMessages(){
@@ -1902,6 +2281,7 @@ async function regenerateAssistant(idx){
   chat.messages.push(aiMsg);
   saveState(); renderMessages();
   await streamResponse(chat, aiMsg, sel);
+  maybeAutoCompress(chat);
 }
 
 async function editUserMessage(idx){
@@ -2055,6 +2435,8 @@ async function sendMessage(){
     return;
   }
   await streamResponse(chat, aiMsg, sel);
+  // Scenario chats: auto-fold older context into long-term memory when it grows too large.
+  maybeAutoCompress(chat);
 }
 
 /* Fake-streamed canned tip when chat.isWelcome and no LLM configured */
@@ -2321,7 +2703,8 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
 }
 function buildOpenAIMessages(chat){
   const out = [];
-  if(chat.systemPrompt) out.push({role:"system", content:chat.systemPrompt});
+  const sys = effectiveSystemPrompt(chat);
+  if(sys) out.push({role:"system", content:sys});
   const msgs = lastN(chat.messages);
   for(const m of msgs){
     if(m.role==="assistant"){ out.push({role:"assistant", content:m.content}); continue; }
@@ -2369,7 +2752,8 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
   let base = cfg.base.replace(/\/+$/,"").replace(/\/v\d+$/,""); // 去掉 /v1
   const url = base + "/api/chat";
   const messages = [];
-  if(chat.systemPrompt) messages.push({role:"system", content:chat.systemPrompt});
+  const sysO = effectiveSystemPrompt(chat);
+  if(sysO) messages.push({role:"system", content:sysO});
   for(const m of lastN(chat.messages)){
     if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
     let txt = m.content||"";
@@ -2443,7 +2827,8 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
     max_tokens: Number(state.general.maxTokens)||4096,
     temperature: Number(state.general.temperature)||0.7,
   };
-  if(chat.systemPrompt) body.system = chat.systemPrompt;
+  const sysC = effectiveSystemPrompt(chat);
+  if(sysC) body.system = sysC;
   const headers = {
     "Content-Type":"application/json",
     "x-api-key": cfg.key,
@@ -2491,7 +2876,8 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
     genCfg.thinkingConfig = { includeThoughts: true };
   }
   const body = { contents, generationConfig: genCfg };
-  if(chat.systemPrompt) body.systemInstruction = {parts:[{text:chat.systemPrompt}]};
+  const sysG = effectiveSystemPrompt(chat);
+  if(sysG) body.systemInstruction = {parts:[{text:sysG}]};
   const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal});
   if(!r.ok){ throw new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); }
   await readSSE(r,(json)=>{
@@ -2574,6 +2960,8 @@ function openSettings(){
   document.getElementById("cfg_temp").value = state.general.temperature;
   document.getElementById("cfg_max_tokens").value = state.general.maxTokens;
   document.getElementById("cfg_history_n").value = state.general.historyN;
+  document.getElementById("cfg_scenario_autocompress").checked = state.general.scenarioAutoCompress !== false;
+  document.getElementById("cfg_scenario_compress_chars").value = state.general.scenarioCompressChars || 4000;
   document.getElementById("cfg_show_thinking").checked = !!state.general.showThinking;
   document.getElementById("cfg_user_name").value = state.general.userName || "";
   document.getElementById("cfg_ai_name").value = state.general.aiName || "";
@@ -2592,6 +2980,8 @@ function saveSettings(){
   state.general.temperature = Number(document.getElementById("cfg_temp").value)||0.7;
   state.general.maxTokens = document.getElementById("cfg_max_tokens").value.trim();
   state.general.historyN = Number(document.getElementById("cfg_history_n").value)||40;
+  state.general.scenarioAutoCompress = document.getElementById("cfg_scenario_autocompress").checked;
+  state.general.scenarioCompressChars = Math.max(500, Number(document.getElementById("cfg_scenario_compress_chars").value)||4000);
   state.general.showThinking = document.getElementById("cfg_show_thinking").checked;
   state.general.userName = document.getElementById("cfg_user_name").value.trim() || t("userName.default");
   state.general.aiName = document.getElementById("cfg_ai_name").value.trim() || t("aiName.default");
@@ -2924,6 +3314,11 @@ function init(){
   renderChatList(); renderMessages(); updateTopBar();
 
   document.getElementById("newChatBtn").onclick = newChat;
+  document.getElementById("newScenarioBtn").onclick = newScenarioChat;
+  document.getElementById("scenarioBtn").onclick = ()=>{ const c = currentChat(); if(c && c.kind==="scenario") openScenarioModal(c.id); };
+  document.getElementById("closeScenario").onclick = closeScenarioModal;
+  document.getElementById("cancelScenario").onclick = closeScenarioModal;
+  document.getElementById("saveScenario").onclick = saveScenario;
   document.getElementById("themeBtn").onclick = ()=>{ state.theme = state.theme==="dark"?"light":"dark"; saveState(); applyTheme(); reRenderAllMermaid(); };
   document.getElementById("langBtn").onclick = ()=>{ setLang(curLang()==="en" ? "zh" : "en"); };
   document.getElementById("reloadBtn").onclick = reloadApp;
