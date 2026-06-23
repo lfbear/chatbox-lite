@@ -852,6 +852,7 @@ const I18N = {
     "stop.title":"Stop",
     "status.connecting":"Connecting…",
     "status.generating":"Generating…",
+    "status.retrying":"Empty response — retrying ({0}/{1})…",
     "settings.title":"Settings",
     "settings.tab.providers":"Providers",
     "settings.tab.general":"General",
@@ -929,6 +930,7 @@ const I18N = {
     "alert.fetchFailed":"Failed to fetch model list: {0}\n\nCheck your Base URL, API Key, and the target service's CORS setup (Ollama needs OLLAMA_ORIGINS=*).",
     "confirm.emptyPicker":"No models selected. The current model list will be cleared. Continue?",
     "msg.aborted":"_[Aborted]_",
+    "msg.empty":"_[Empty response — the model returned no content after several attempts. Try resending, or check the model/server.]_",
     "msg.error.label":"Error",
     "msg.error.suffix":"Please check the API Key, Base URL, model name, network, and CORS settings.",
     "alert.baseUrlRequired":"Please fill in the Base URL first.",
@@ -1025,6 +1027,7 @@ const I18N = {
     "stop.title":"停止",
     "status.connecting":"连接中…",
     "status.generating":"生成中…",
+    "status.retrying":"空响应，重试中（{0}/{1}）…",
     "settings.title":"设置",
     "settings.tab.providers":"模型供应商",
     "settings.tab.general":"通用",
@@ -1102,6 +1105,7 @@ const I18N = {
     "alert.fetchFailed":"获取模型列表失败：{0}\n\n请检查 Base URL、API Key 是否正确，以及目标服务的 CORS 设置（Ollama 需 OLLAMA_ORIGINS=*）。",
     "confirm.emptyPicker":"没有勾选任何模型，将清空当前模型列表，确定继续？",
     "msg.aborted":"_[已中止]_",
+    "msg.empty":"_[空响应 — 多次尝试后模型仍未返回内容。可重新发送，或检查模型/服务端。]_",
     "msg.error.label":"错误",
     "msg.error.suffix":"请检查 API Key、Base URL、模型名、网络以及 CORS 设置。",
     "alert.baseUrlRequired":"请先填写 Base URL",
@@ -2550,6 +2554,17 @@ function makeThinkTagParser(onReasoning, onContent){
   return feed;
 }
 
+// Should an attempt be retried? `err === null` means the stream finished
+// cleanly but produced nothing (the local-server "empty response" case) —
+// always worth another try. Real errors are only retried when transient.
+function isRetryableLLM(err){
+  if(!err) return true;                          // clean finish, no tokens → retry
+  if(err.name === "AbortError") return false;    // user pressed stop
+  if(err.name === "TypeError") return true;      // network/CORS/connection reset
+  if(typeof err.status === "number" && err.status >= 500) return true; // server busy / model loading
+  return false;                                  // 4xx, auth, parse errors → don't hammer
+}
+
 async function streamResponse(chat, aiMsg, modelId){
   const [provider, model] = modelId.split("::");
   const cfg = state.config[provider];
@@ -2607,6 +2622,17 @@ async function streamResponse(chat, aiMsg, modelId){
     maybeAutoScroll();
   };
 
+  // Return the assistant bubble to its "waiting" state before a retry, so a
+  // failed attempt's partial output (if any) doesn't linger on screen.
+  const resetAssistantBubble = ()=>{
+    const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
+    if(!msgEl) return;
+    const panel = msgEl.querySelector(".thinking-panel");
+    if(panel) panel.remove();
+    const c = msgEl.querySelector(".content");
+    if(c) c.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(t("waiting.aria"))}"><span></span><span></span><span></span></span>`;
+  };
+
   const onReasoning = (delta)=>{
     markFirstChunk();
     // 不管开关都标记"在思考"，让指示器始终可见，避免假死
@@ -2621,24 +2647,53 @@ async function streamResponse(chat, aiMsg, modelId){
     refresh();
   };
 
-  try{
-    if(provider==="ollama"){
-      const useNative = await pickLocalProtocol(cfg);
-      if(useNative){
-        await callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
-      }else{
-        await callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider:"ollama"});
-      }
-    }else if(provider==="openai"){
-      await callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider});
-    }else if(provider==="claude"){
-      await callClaude({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
-    }else if(provider==="gemini"){
-      await callGemini({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+  // Build the per-attempt request runner once (avoids re-probing the local
+  // protocol on every retry).
+  let runOnce;
+  if(provider==="ollama"){
+    const useNative = await pickLocalProtocol(cfg);
+    runOnce = useNative
+      ? ()=>callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning})
+      : ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider:"ollama"});
+  }else if(provider==="openai"){
+    runOnce = ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider});
+  }else if(provider==="claude"){
+    runOnce = ()=>callClaude({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+  }else if(provider==="gemini"){
+    runOnce = ()=>callGemini({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+  }else{
+    runOnce = async ()=>{};
+  }
+
+  // Local servers (llama.cpp / LM Studio / Ollama) occasionally close the
+  // stream with no tokens at all — a clean 200 but an empty answer. Auto-retry
+  // a few times so a transient empty/failed response recovers itself instead of
+  // surfacing a blank bubble. Tunable via state.general.emptyRetries.
+  const maxAttempts = Math.max(1, (Number(state.general.emptyRetries) || 2) + 1);
+  for(let attempt=1; attempt<=maxAttempts; attempt++){
+    // Reset accumulation + indicators for this attempt.
+    aiMsg.content = ""; aiMsg.reasoning = ""; aiMsg.thought = false; aiMsg.reasoningMs = 0;
+    firstChunkSeen = false; inReasoning = false;
+    if(attempt>1){
+      resetAssistantBubble();
+      setSending(true, t("status.retrying", attempt, maxAttempts));
+      await new Promise(r=>setTimeout(r, 400*(attempt-1))); // small linear backoff
     }
-  }catch(e){
-    if(e.name==="AbortError"){ aiMsg.content += "\n\n" + t("msg.aborted"); }
-    else { aiMsg.content += `\n\n> ❌ **${t("msg.error.label")}**: ${e.message}\n\n${t("msg.error.suffix")}`; }
+
+    let err = null;
+    try{ await runOnce(); }
+    catch(e){ err = e; }
+
+    if(err && err.name==="AbortError"){ aiMsg.content += "\n\n" + t("msg.aborted"); break; }
+
+    const gotSomething = aiMsg.content.trim()!=="" || aiMsg.reasoning.trim()!=="";
+    if(!err && gotSomething) break;                                  // good response
+    if(attempt < maxAttempts && isRetryableLLM(err)) continue;       // transient → retry
+
+    // Out of attempts, or a non-retryable error: surface the outcome.
+    if(err){ aiMsg.content += `\n\n> ❌ **${t("msg.error.label")}**: ${err.message}\n\n${t("msg.error.suffix")}`; }
+    else if(!gotSomething){ aiMsg.content = t("msg.empty"); }
+    break;
   }
   if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; }
   // 最终渲染
@@ -2688,7 +2743,7 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
   const headers = {"Content-Type":"application/json"};
   if(cfg.key) headers["Authorization"] = "Bearer "+cfg.key;
   const r = await fetch(url,{method:"POST", headers, body:JSON.stringify(body), signal});
-  if(!r.ok){ throw new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); }
+  if(!r.ok){ const e = new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); e.status = r.status; throw e; }
   const parser = makeThinkTagParser(onReasoning, onContent);
   await readSSE(r, (json)=>{
     const delta = json.choices?.[0]?.delta || {};
@@ -3263,29 +3318,75 @@ function setupPullToRefresh(){
 }
 
 /* ------------------------- PWA manifest (inline, single-file) ------------------------- */
-function setupPWA(){
+// Rasterize an SVG (referenced via URL) to a PNG data URL at the given size.
+// Chrome's installability check rejects SVG-only manifests, so we synthesize
+// PNG 192/512 icons on the fly from our inlined SVG.
+function rasterizeSvgToPng(svgUrl, size){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      try{
+        const canvas = document.createElement("canvas");
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/png"));
+      }catch(e){ reject(e); }
+    };
+    img.onerror = reject;
+    img.src = svgUrl;
+  });
+}
+
+// Cache the generated PNGs so language switches that re-run setupPWA() don't
+// re-rasterize.
+let _pngIconCache = null;
+async function getPwaPngIcons(svgUrl){
+  if(_pngIconCache) return _pngIconCache;
+  try{
+    const [png192, png512] = await Promise.all([
+      rasterizeSvgToPng(svgUrl, 192),
+      rasterizeSvgToPng(svgUrl, 512)
+    ]);
+    _pngIconCache = { png192, png512 };
+  }catch(e){
+    console.warn("[pwa] icon rasterize failed:", e);
+    _pngIconCache = { png192: null, png512: null };
+  }
+  return _pngIconCache;
+}
+
+async function setupPWA(){
   try{
     // Reuse the same SVG icon that's already inlined in the head
     const iconLink = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
     const iconUrl = iconLink ? iconLink.href : "";
     if(!iconUrl) return;
+    // Synthesize PNG icons — Chrome won't honor an SVG-only manifest for install
+    const { png192, png512 } = await getPwaPngIcons(iconUrl);
     // Compute scope = directory of current document
     const dir = location.pathname.replace(/[^/]*$/, "") || "/";
+    const icons = [];
+    if(png192) icons.push({ src: png192, sizes: "192x192", type: "image/png", purpose: "any" });
+    if(png512) icons.push({ src: png512, sizes: "512x512", type: "image/png", purpose: "any" });
+    if(png512) icons.push({ src: png512, sizes: "512x512", type: "image/png", purpose: "maskable" });
+    // Keep the SVG as a bonus for vector-capable browsers
+    icons.push({ src: iconUrl, sizes: "any", type: "image/svg+xml", purpose: "any" });
     const manifest = {
       name: "Chatbox Lite",
       short_name: "Chatbox Lite",
       description: "Single-file browser-based multi-model chat",
-      start_url: location.pathname + location.search,
+      // start_url must stay inside scope. Stick to the document path (no query).
+      start_url: location.pathname,
       scope: dir,
       display: "standalone",
       orientation: "any",
       background_color: "#faf8f3",
       theme_color: "#0fb5a0",
       lang: curLang()==="en" ? "en" : "zh-CN",
-      icons: [
-        { src: iconUrl, sizes: "any", type: "image/svg+xml", purpose: "any" },
-        { src: iconUrl, sizes: "any", type: "image/svg+xml", purpose: "maskable" }
-      ]
+      icons
     };
     const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
     const url = URL.createObjectURL(blob);
@@ -3296,7 +3397,28 @@ function setupPWA(){
       document.head.appendChild(link);
     }
     link.href = url;
-  }catch(e){ /* PWA setup is best-effort */ }
+  }catch(e){ console.warn("[pwa] setup failed:", e); }
+}
+
+/* ------------------------- Service worker (optional) ------------------------- */
+// The manifest above is inlined, but a real service worker file CANNOT be —
+// it must be a same-origin script served with a JS MIME type. So `sw.js` is an
+// optional companion file: drop it next to index.html and the app becomes a
+// fully installable, offline-capable Chrome/Edge app. Leave it out (or open the
+// page from file://) and registration fails silently — the page keeps working
+// as a plain single-page app.
+function setupServiceWorker(){
+  if(!("serviceWorker" in navigator)) return;
+  // Service workers only run over https or localhost — never file:// or plain http.
+  const isLocalhost = ["localhost","127.0.0.1","[::1]"].includes(location.hostname);
+  if(location.protocol !== "https:" && !isLocalhost) return;
+  window.addEventListener("load", ()=>{
+    const swUrl = new URL("sw.js", location.href).href;
+    navigator.serviceWorker.register(swUrl, { scope: "./" })
+      .then(()=> console.info("[pwa] service worker registered — app is installable & offline-capable"))
+      // Missing file (404) or wrong MIME → reject. That's the "no sw.js" case: keep running as a plain SPA.
+      .catch((err)=> console.info("[pwa] no service worker; running as a plain single-page app:", err && err.message));
+  });
 }
 
 /* ------------------------- Init ------------------------- */
@@ -3305,6 +3427,7 @@ function init(){
   applyI18n();
   applyStandaloneClass();
   setupPWA();
+  setupServiceWorker();
   setupPullToRefresh();
   if(state.chats.length===0){
     if(hasConfiguredLLM()) newChat();
