@@ -10,13 +10,18 @@
  *
  * Bump VERSION to force-refresh the cache after shipping a new index.html.
  */
-const VERSION = "chatbox-lite-v1";
+const VERSION = "chatbox-lite-v2";
 const APP_SHELL = "./"; // resolves to the directory index = index.html
+// Best-effort precache. Each is added individually so one 404 (e.g. icons not
+// deployed) doesn't abort the whole install.
+const PRECACHE = [APP_SHELL, "manifest.webmanifest", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.add(APP_SHELL).catch(() => {}))
+    caches.open(VERSION).then((cache) =>
+      Promise.all(PRECACHE.map((u) => cache.add(u).catch(() => {})))
+    )
   );
 });
 
