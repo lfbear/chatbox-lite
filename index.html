@@ -14,6 +14,9 @@
 <!-- PWA: inline SVG icon — used by tab favicon, iOS home-screen icon, and webmanifest icons -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjExMiIgZmlsbD0iIzBmYjVhMCIvPjxyZWN0IHg9IjEyOCIgeT0iMTQwIiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjIwMCIgcng9IjQ4IiBmaWxsPSIjZmFmOGYzIi8+PHBvbHlnb24gcG9pbnRzPSIxNzgsMzQwIDIyNiwzNDAgMTg4LDQwMCIgZmlsbD0iI2ZhZjhmMyIvPjxwYXRoIGQ9Ik0yNTYgMTc1IEwyNjcgMjI5IEwzMjEgMjQwIEwyNjcgMjUxIEwyNTYgMzA1IEwyNDUgMjUxIEwxOTEgMjQwIEwyNDUgMjI5IFoiIGZpbGw9IiMwZmI1YTAiLz48cGF0aCBkPSJNMTgzIDE5OSBMMTg2IDIxMSBMMTk4IDIxNCBMMTg2IDIxNyBMMTgzIDIyOSBMMTgwIDIxNyBMMTY4IDIxNCBMMTgwIDIxMSBaIiBmaWxsPSIjMGZiNWEwIiBvcGFjaXR5PSIuNSIvPjxwYXRoIGQ9Ik0zNDEgMjcxIEwzNDMgMjgxIEwzNTMgMjg0IEwzNDMgMjg3IEwzNDEgMjk3IEwzMzkgMjg3IEwzMjkgMjg0IEwzMzkgMjgxIFoiIGZpbGw9IiMwZmI1YTAiIG9wYWNpdHk9Ii41Ii8+PC9zdmc+" />
 <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjExMiIgZmlsbD0iIzBmYjVhMCIvPjxyZWN0IHg9IjEyOCIgeT0iMTQwIiB3aWR0aD0iMjU2IiBoZWlnaHQ9IjIwMCIgcng9IjQ4IiBmaWxsPSIjZmFmOGYzIi8+PHBvbHlnb24gcG9pbnRzPSIxNzgsMzQwIDIyNiwzNDAgMTg4LDQwMCIgZmlsbD0iI2ZhZjhmMyIvPjxwYXRoIGQ9Ik0yNTYgMTc1IEwyNjcgMjI5IEwzMjEgMjQwIEwyNjcgMjUxIEwyNTYgMzA1IEwyNDUgMjUxIEwxOTEgMjQwIEwyNDUgMjI5IFoiIGZpbGw9IiMwZmI1YTAiLz48cGF0aCBkPSJNMTgzIDE5OSBMMTg2IDIxMSBMMTk4IDIxNCBMMTg2IDIxNyBMMTgzIDIyOSBMMTgwIDIxNyBMMTY4IDIxNCBMMTgwIDIxMSBaIiBmaWxsPSIjMGZiNWEwIiBvcGFjaXR5PSIuNSIvPjxwYXRoIGQ9Ik0zNDEgMjcxIEwzNDMgMjgxIEwzNTMgMjg0IEwzNDMgMjg3IEwzNDEgMjk3IEwzMzkgMjg3IEwzMjkgMjg0IEwzMzkgMjgxIFoiIGZpbGw9IiMwZmI1YTAiIG9wYWNpdHk9Ii41Ii8+PC9zdmc+" />
+<!-- PWA: real manifest file enables Chrome/Edge "Install app" (a blob: manifest is rejected by Chrome's install check).
+     Optional — if this file is absent (e.g. opened as a standalone single file), setupPWA() injects an inline blob fallback so the page still works. -->
+<link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css" />
 <style>
@@ -3360,6 +3363,17 @@ async function getPwaPngIcons(svgUrl){
 
 async function setupPWA(){
   try{
+    // Prefer a real manifest.webmanifest file when it's deployed alongside the
+    // page: Chrome only treats a site as installable when the manifest is a
+    // real http(s) resource — it rejects the blob: fallback below. So if the
+    // static <link rel="manifest"> resolves, leave it in place and stop here.
+    const staticLink = document.querySelector('link[rel="manifest"]');
+    if(staticLink && staticLink.href && !staticLink.href.startsWith("blob:")){
+      try{
+        const res = await fetch(staticLink.href, { cache: "no-store" });
+        if(res.ok){ await res.json(); return; } // real manifest works → installable, nothing to do
+      }catch{ /* file missing (single-file use) → fall through to inline blob */ }
+    }
     // Reuse the same SVG icon that's already inlined in the head
     const iconLink = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
     const iconUrl = iconLink ? iconLink.href : "";
