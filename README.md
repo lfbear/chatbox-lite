@@ -10,6 +10,7 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 
 - **Unified UI across providers**: OpenAI compatible (DeepSeek / Moonshot / SiliconFlow / OpenRouter / vLLM …), Anthropic Claude, Google Gemini, local Ollama / llama.cpp / LM Studio.
 - **Streaming output**: Server-Sent Events / NDJSON both supported, rendered as it streams.
+- **Resilient local-model streaming**: when a local server (llama.cpp / LM Studio / Ollama) closes the stream with no tokens, or hits a transient network / 5xx error, the request auto-retries a few times before surfacing anything — so the occasional "empty response" recovers itself instead of leaving a blank bubble. Tunable via `state.general.emptyRetries` (default 2).
 - **Visible thinking process**: Compatible with OpenAI `reasoning_content`, Ollama `thinking`, Claude `thinking_delta`, Gemini `thought`, and inline `<think>` / `<thinking>` tags (DeepSeek-R1, etc.). One-click toggle, auto-strips leaked prefixes.
 - **Full Markdown stack**: GFM tables, code highlighting (highlight.js), KaTeX math, DOMPurify XSS filtering.
 - **Vision + files**: Paste/drag-drop images; PDF / DOCX / TXT / source code parsed as context.
@@ -40,16 +41,24 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 
 ## 📱 Install as a desktop / mobile app (PWA)
 
-The page ships with an inline webmanifest, so once you host it over **HTTPS** (or `localhost`) you can install it like a native app — no separate manifest or service-worker file required.
+`index.html` always runs fine on its own as a plain web page. To also make it **installable as a native-style app with offline support**, drop these optional companion files next to it and host everything over **HTTPS** (or `localhost`):
 
-- **Chrome / Edge desktop** — click the ⋮ menu → **"Install Chatbox Lite"** (or **"Apps → Install this site as an app"**). Launches in a chrome-less window.
-- **macOS Safari (17+)** — **File → Add to Dock…** (or the Share button → **Add to Dock**).
-- **iOS / iPadOS Safari** — Share button → **Add to Home Screen**.
-- **Android Chrome** — ⋮ menu → **Install app** (or "Add to Home screen").
+| File | Purpose |
+| --- | --- |
+| `manifest.webmanifest` | Web App Manifest. Chrome/Edge only offer "Install" when the manifest is a real `https:` file — they reject the inline `blob:` one the page generates on its own. |
+| `icon-192.png`, `icon-512.png` | App icons referenced by the manifest. |
+| `sw.js` | Service worker — caches the app shell for offline use and makes installability reliable. |
 
-> Caveat: opening the HTML via `file://` doesn't qualify for install. Use any static host — GitHub Pages, Cloudflare Pages, `python3 -m http.server`, etc.
+**All of these are optional.** If any is missing (or you open the page via `file://`), `index.html` silently falls back to its built-in inline manifest and keeps working as a normal single-page app — it just won't be installable in Chrome/Edge. Nothing breaks.
+
+- **Chrome / Edge desktop** *(needs the companion files)* — an install icon (⊕) appears at the right of the address bar, or ⋮ menu → **Cast, Save and Share → Install page as App…**. Launches in a chrome-less window.
+- **Android Chrome** *(needs the companion files)* — ⋮ menu → **Install app**.
+- **macOS Safari (17+)** — **File → Add to Dock…**. Works even in single-file mode (Safari uses the inline `apple-touch-icon` / meta tags).
+- **iOS / iPadOS Safari** — Share button → **Add to Home Screen**. Also works in single-file mode.
+
+> **Offline**: once `sw.js` is deployed and you've loaded the page online at least once, the app shell is cached and opens with no network at all. (You still need your model API reachable to actually chat.) Bump the `VERSION` constant in `sw.js` after shipping a new `index.html` to refresh the cache.
 >
-> True offline support (works with no network at all) isn't enabled in this single-file build — it would require a separate `sw.js`. After install the app does open in a standalone window and works as long as your model API is reachable.
+> **Heads-up after deploying**: Chrome caches the old service worker and installability state aggressively. After updating, hard-reload (DevTools → Application → Service Workers → *Update*), or check in an Incognito window. DevTools → Application → **Manifest** should show the manifest source as your `https://…/manifest.webmanifest` (not a `blob:` URL) — that's the signal it's installable.
 
 **Refresh inside the installed app**: standalone PWAs have no browser refresh button. Tap the **↻** icon that appears in the sidebar header (only shown when running standalone), or on iOS/Android pull down on the message list.
 
@@ -142,13 +151,13 @@ Suggestions welcome in Issues:
 - [ ] Custom providers (add a standalone block for any OpenAI-compatible endpoint)
 - [ ] Conversation search
 - [ ] Prompt library
-- [ ] Installable PWA / offline support
+- [x] Installable PWA / offline support (optional `manifest.webmanifest` + `sw.js`)
 
 ---
 
 ## 🤝 Contributing
 
-PRs / issues welcome. Since this is a single-file project, just edit `chatbox-lite/index.html` directly — no build needed.
+PRs / issues welcome. The whole app lives in `index.html` — just edit it directly, no build needed. The repo also ships optional PWA companion files (`manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `sw.js`); they're only needed for install/offline and the app runs fine without them.
 
 ---
 
@@ -170,6 +179,7 @@ MIT
 
 - **多供应商统一界面**：OpenAI 兼容（DeepSeek / Moonshot / 硅基流动 / OpenRouter / vLLM …）、Anthropic Claude、Google Gemini、本地 Ollama / llama.cpp / LM Studio。
 - **流式输出**：Server-Sent Events / NDJSON 全部支持，边生成边渲染。
+- **本地模型流式容错**：本地服务（llama.cpp / LM Studio / Ollama）有时会在没吐任何 token 的情况下关闭流，或遇到瞬时网络 / 5xx 错误；此时请求会自动重试几次再决定是否报错 —— 偶发的"空响应"能自行恢复，而不是留下一个空气泡。可通过 `state.general.emptyRetries` 调整（默认 2 次）。
 - **思考过程可视化**：兼容 OpenAI `reasoning_content`、Ollama `thinking`、Claude `thinking_delta`、Gemini `thought`、以及内联 `<think>` / `<thinking>` 标签（DeepSeek-R1 等），可一键开关、自动剥离泄漏前缀。
 - **Markdown 全家桶**：GFM 表格、代码高亮（highlight.js）、KaTeX 数学公式、DOMPurify XSS 过滤。
 - **视觉 + 文件**：图片粘贴/拖拽、PDF / DOCX / TXT / 代码文件解析为上下文。
@@ -200,16 +210,24 @@ MIT
 
 ## 📱 安装为桌面 / 移动应用（PWA）
 
-页面已内置 inline 的 webmanifest，把它放到 **HTTPS** 网址（或 `localhost`）下访问，就能像原生 App 一样安装 —— 不需要额外的 manifest 或 service worker 文件。
+`index.html` 单独使用时始终能作为普通网页正常运行。如果还想让它**可安装为原生风格的 App，并支持离线**，把下面这几个可选的配套文件和它放在一起，整体挂到 **HTTPS** 网址（或 `localhost`）下即可：
 
-- **Chrome / Edge 桌面端** —— ⋮ 菜单 → **"安装 Chatbox Lite"**（或 **"应用 → 把该网站安装为应用"**）。会在独立窗口运行。
-- **macOS Safari (17+)** —— **文件 → 添加到程序坞…**（或分享菜单 → **添加到程序坞**）。
-- **iOS / iPadOS Safari** —— 分享按钮 → **添加到主屏幕**。
-- **Android Chrome** —— ⋮ 菜单 → **安装应用**（或 "添加到主屏幕"）。
+| 文件 | 作用 |
+| --- | --- |
+| `manifest.webmanifest` | Web App Manifest。Chrome/Edge 只在 manifest 是真实的 `https:` 文件时才提供"安装"——页面自身生成的内联 `blob:` manifest 会被拒绝。 |
+| `icon-192.png`、`icon-512.png` | manifest 引用的应用图标。 |
+| `sw.js` | Service worker —— 缓存应用外壳以支持离线，并让安装更可靠。 |
 
-> 注意：用 `file://` 直接打开 HTML 是不能安装的。需要任意静态托管 —— GitHub Pages、Cloudflare Pages、`python3 -m http.server` 等都行。
+**这些文件全都是可选的。** 任意一个缺失（或用 `file://` 直接打开），`index.html` 会静默回退到内置的内联 manifest，继续作为普通单页应用运行 —— 只是在 Chrome/Edge 里无法安装而已，不会出任何错。
+
+- **Chrome / Edge 桌面端**（需要配套文件）—— 地址栏右侧会出现安装图标（⊕），或 ⋮ 菜单 → **投放、保存和共享 → 将页面安装为应用…**。会在独立窗口运行。
+- **Android Chrome**（需要配套文件）—— ⋮ 菜单 → **安装应用**。
+- **macOS Safari (17+)** —— **文件 → 添加到程序坞…**。单文件模式下也能用（Safari 用的是内联的 `apple-touch-icon` / meta 标签）。
+- **iOS / iPadOS Safari** —— 分享按钮 → **添加到主屏幕**。单文件模式下同样可用。
+
+> **离线**：部署了 `sw.js` 并在线打开过至少一次后，应用外壳会被缓存，之后完全断网也能打开（但真正聊天仍需你配置的模型 API 可连通）。更新 `index.html` 后，改一下 `sw.js` 里的 `VERSION` 常量即可刷新缓存。
 >
-> 真正的离线运行（完全断网仍可用）在当前单文件版本里没有开启 —— 那需要额外的 `sw.js` 文件。安装后页面会在独立窗口里启动，只要你配置的模型 API 还能连通，使用体验和原生应用一致。
+> **部署后注意**：Chrome 对旧的 service worker 和可安装状态缓存得很激进。更新后请强制刷新（DevTools → Application → Service Workers → *Update*），或用无痕窗口验证。DevTools → Application → **Manifest** 里 manifest 来源应显示为你的 `https://…/manifest.webmanifest`（而不是 `blob:` URL）—— 这就是"可安装"的标志。
 
 **安装后如何刷新**：独立 PWA 窗口没有浏览器的刷新按钮。点侧栏顶部的 **↻** 图标（仅在独立模式下显示），或在 iOS / Android 上从消息列表顶端下拉。
 
@@ -302,13 +320,13 @@ MIT
 - [ ] 自定义供应商（任意 OpenAI 兼容端点都能加一个独立块）
 - [ ] 对话搜索
 - [ ] 提示词 / Prompt 库
-- [ ] PWA 离线可装
+- [x] PWA 离线可装（可选的 `manifest.webmanifest` + `sw.js`）
 
 ---
 
 ## 🤝 贡献
 
-PR / Issue 都欢迎。因为是单文件项目，改动直接编辑 `chatbox-lite/index.html` 即可，无需构建。
+PR / Issue 都欢迎。整个应用都在 `index.html` 里，直接编辑即可，无需构建。仓库里另有可选的 PWA 配套文件（`manifest.webmanifest`、`icon-192.png`、`icon-512.png`、`sw.js`），仅用于安装 / 离线，缺了它们应用照常运行。
 
 ---
 
