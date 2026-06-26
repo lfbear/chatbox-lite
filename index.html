@@ -185,6 +185,9 @@ body.standalone .pwa-only{display:inline-flex}
 .chat-item .actions{display:none;gap:2px}
 .chat-item:hover .actions{display:flex}
 .chat-item .actions .icon-btn{width:22px;height:22px}
+.chat-item .stream-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 var(--accent);animation:streamPulse 1.2s ease-out infinite}
+.chat-item:hover .stream-dot{display:none}
+@keyframes streamPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 60%,transparent)}70%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}
 .chat-item.dragging{opacity:.45}
 .chat-item.drag-before{box-shadow:inset 0 2px 0 0 var(--accent)}
 .chat-item.drag-after{box-shadow:inset 0 -2px 0 0 var(--accent)}
@@ -1200,7 +1203,45 @@ function createWelcomeChat(){
 
 let state = loadState();
 let pendingAttachments = []; // {kind:'image'|'file', name, mime, dataUrl?, text?}
-let currentController = null; // AbortController for streaming
+// 每个会话独立的流式状态：chatId -> { controller, phase }
+// 这样不同会话的输出互不干扰，可以同时进行。
+const activeStreams = new Map();
+
+function streamStart(chatId, controller, phase){
+  activeStreams.set(chatId, { controller, phase: phase || "" });
+  if(state.activeChatId === chatId) syncComposerUI();
+  renderChatList(); // 侧栏显示后台流式指示
+}
+function streamPhase(chatId, phase){
+  const s = activeStreams.get(chatId);
+  if(!s) return;
+  s.phase = phase;
+  if(state.activeChatId === chatId) syncComposerUI();
+}
+function streamEnd(chatId){
+  activeStreams.delete(chatId);
+  if(state.activeChatId === chatId) syncComposerUI();
+  renderChatList();
+}
+function isStreaming(chatId){ return activeStreams.has(chatId); }
+function abortStream(chatId){ activeStreams.get(chatId)?.controller?.abort(); }
+
+/* 根据当前激活会话的流式状态，同步发送/停止按钮与状态提示。 */
+function syncComposerUI(){
+  const btn = document.getElementById("sendBtn");
+  const hint = document.getElementById("statusHint");
+  if(!btn) return;
+  const s = activeStreams.get(state.activeChatId);
+  if(s){
+    btn.classList.add("stop-btn"); btn.innerHTML = "■"; btn.title = t("stop.title");
+    btn.onclick = ()=>abortStream(state.activeChatId);
+    if(hint) hint.innerHTML = `<span class="status-pulse">${escapeHtml(s.phase || t("status.connecting"))}</span>`;
+  }else{
+    btn.classList.remove("stop-btn"); btn.innerHTML = "➤"; btn.title = t("send.title");
+    btn.onclick = sendMessage;
+    if(hint) hint.textContent = "";
+  }
+}
 let stickToBottom = true;     // 自动滚动开关：用户滚离底部即关闭
 let _scrollProgrammatic = 0;  // 程序触发的滚动次数（不应改变 stick）
 
@@ -1693,6 +1734,7 @@ function newChat(){
 }
 function deleteChat(id){
   if(!confirm(t("confirm.deleteChat"))) return;
+  if(isStreaming(id)){ abortStream(id); activeStreams.delete(id); }
   state.chats = state.chats.filter(c=>c.id!==id);
   if(state.activeChatId===id) state.activeChatId = state.chats[0]?.id || null;
   if(!state.activeChatId){
@@ -1707,6 +1749,7 @@ function renameChat(id){
 function switchChat(id){
   state.activeChatId = id; saveState(); renderChatList(); renderMessages(); updateTopBar();
   document.getElementById("modelSelect").value = currentChat()?.model || "";
+  syncComposerUI(); // 切换会话后，按目标会话是否在流式中刷新发送/停止按钮
   closeMobileSidebar();
 }
 
@@ -2062,7 +2105,7 @@ function renderChatList(){
   list.innerHTML = "";
   for(const c of state.chats){
     const div = document.createElement("div");
-    div.className = "chat-item"+(c.id===state.activeChatId?" active":"");
+    div.className = "chat-item"+(c.id===state.activeChatId?" active":"")+(isStreaming(c.id)?" streaming":"");
     div.draggable = true;
     div.dataset.id = c.id;
     const icon = c.kind === "scenario" ? "🎬" : "💬";
@@ -2072,6 +2115,7 @@ function renderChatList(){
     div.innerHTML = `
       <span title="${c.kind==="scenario"?escapeHtml(t("scenario.badge")):""}">${icon}</span>
       <span class="title">${escapeHtml(c.title||t("chat.untitled"))}</span>
+      ${isStreaming(c.id)?'<span class="stream-dot" title="正在生成…"></span>':""}
       <span class="actions">
         ${editBtn}
         <button class="icon-btn" data-act="rename" title="${escapeHtml(t("chat.action.rename"))}">✎</button>
@@ -2278,7 +2322,7 @@ function renderMessageEl(m, idx){
 
 async function regenerateAssistant(idx){
   const chat = currentChat(); if(!chat) return;
-  if(currentController){ currentController.abort(); await new Promise(r=>setTimeout(r,80)); }
+  if(isStreaming(chat.id)){ abortStream(chat.id); await new Promise(r=>setTimeout(r,80)); }
   // 删掉该 assistant 消息及之后所有消息（通常之后没有）
   chat.messages = chat.messages.slice(0, idx);
   const sel = document.getElementById("modelSelect").value;
@@ -2294,7 +2338,7 @@ async function regenerateAssistant(idx){
 async function editUserMessage(idx){
   const chat = currentChat(); if(!chat) return;
   const msg = chat.messages[idx]; if(!msg || msg.role !== "user") return;
-  if(currentController){ currentController.abort(); await new Promise(r=>setTimeout(r,80)); }
+  if(isStreaming(chat.id)){ abortStream(chat.id); await new Promise(r=>setTimeout(r,80)); }
   const ta = document.getElementById("input");
   ta.value = msg.content || "";
   pendingAttachments = (msg.attachments||[]).map(a=>({...a}));
@@ -2571,8 +2615,11 @@ function isRetryableLLM(err){
 async function streamResponse(chat, aiMsg, modelId){
   const [provider, model] = modelId.split("::");
   const cfg = state.config[provider];
-  const ctrl = new AbortController(); currentController = ctrl;
-  setSending(true, t("status.connecting"));
+  const chatId = chat.id;
+  // 仅当此会话正处于前台时才允许操作 DOM —— 这是会话隔离的关键。
+  const onActive = ()=> state.activeChatId === chatId;
+  const ctrl = new AbortController();
+  streamStart(chatId, ctrl, t("status.connecting"));
 
   let reasoningStart = 0;
   let inReasoning = false;
@@ -2581,10 +2628,11 @@ async function streamResponse(chat, aiMsg, modelId){
   const markFirstChunk = ()=>{
     if(firstChunkSeen) return;
     firstChunkSeen = true;
-    setSending(true, t("status.generating"));
+    streamPhase(chatId, t("status.generating"));
   };
 
   const refresh = ()=>{
+    if(!onActive()) return; // 后台会话：只累积数据，不触碰前台 DOM
     const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
     if(!msgEl) return;
     const body = msgEl.querySelector(".body");
@@ -2628,6 +2676,7 @@ async function streamResponse(chat, aiMsg, modelId){
   // Return the assistant bubble to its "waiting" state before a retry, so a
   // failed attempt's partial output (if any) doesn't linger on screen.
   const resetAssistantBubble = ()=>{
+    if(!onActive()) return;
     const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
     if(!msgEl) return;
     const panel = msgEl.querySelector(".thinking-panel");
@@ -2679,7 +2728,7 @@ async function streamResponse(chat, aiMsg, modelId){
     firstChunkSeen = false; inReasoning = false;
     if(attempt>1){
       resetAssistantBubble();
-      setSending(true, t("status.retrying", attempt, maxAttempts));
+      streamPhase(chatId, t("status.retrying", attempt, maxAttempts));
       await new Promise(r=>setTimeout(r, 400*(attempt-1))); // small linear backoff
     }
 
@@ -2699,24 +2748,27 @@ async function streamResponse(chat, aiMsg, modelId){
     break;
   }
   if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; }
-  // 最终渲染
-  const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
-  if(msgEl){
-    const panel = msgEl.querySelector(".thinking-panel");
-    if(panel){
-      panel.classList.remove("streaming");
-      panel.open = false;
-      const ms = aiMsg.reasoningMs || 0;
-      const prefix = (state.general.showThinking && aiMsg.reasoning) ? t("thinking.done") : t("thinking.done.hidden");
-      panel.querySelector(".label").textContent = `${prefix}${ms?` · ${(ms/1000).toFixed(1)}s`:""}`;
+  // 最终渲染：仅当此会话在前台时更新 DOM；否则数据已存入 aiMsg，
+  // 切回该会话时由 renderMessages 重建。
+  if(onActive()){
+    const msgEl = document.querySelector(".messages .msg-wrap .msg:last-child");
+    if(msgEl){
+      const panel = msgEl.querySelector(".thinking-panel");
+      if(panel){
+        panel.classList.remove("streaming");
+        panel.open = false;
+        const ms = aiMsg.reasoningMs || 0;
+        const prefix = (state.general.showThinking && aiMsg.reasoning) ? t("thinking.done") : t("thinking.done.hidden");
+        panel.querySelector(".label").textContent = `${prefix}${ms?` · ${(ms/1000).toFixed(1)}s`:""}`;
+      }
+      const last = msgEl.querySelector(".content");
+      last.innerHTML = renderMarkdown(aiMsg.content);
+      enhanceCodeBlocks(last);
+      renderMathIn(last);
+      enhanceMermaid(last);
     }
-    const last = msgEl.querySelector(".content");
-    last.innerHTML = renderMarkdown(aiMsg.content);
-    enhanceCodeBlocks(last);
-    renderMathIn(last);
-    enhanceMermaid(last);
   }
-  setSending(false); currentController=null;
+  streamEnd(chatId);
   saveState();
 }
 
@@ -2981,15 +3033,15 @@ function lastN(messages){
 }
 
 /* ------------------------- UI wiring ------------------------- */
+/* setSending 已被按会话隔离的 streamStart/streamPhase/streamEnd 取代。
+   保留一个仅作用于"当前激活会话"的兼容入口，供非流式路径（如旧调用）使用。 */
 function setSending(on, phase){
-  const btn = document.getElementById("sendBtn");
-  if(on){ btn.classList.add("stop-btn"); btn.innerHTML="■"; btn.title=t("stop.title"); btn.onclick=()=>currentController?.abort(); }
-  else { btn.classList.remove("stop-btn"); btn.innerHTML="➤"; btn.title=t("send.title"); btn.onclick=sendMessage; }
-  const hint = document.getElementById("statusHint");
+  const id = state.activeChatId;
   if(on){
-    hint.innerHTML = `<span class="status-pulse">${escapeHtml(phase||t("status.connecting"))}</span>`;
+    if(activeStreams.has(id)) streamPhase(id, phase || t("status.connecting"));
+    else streamStart(id, new AbortController(), phase || t("status.connecting"));
   }else{
-    hint.textContent = "";
+    streamEnd(id);
   }
 }
 function autoresize(el){
