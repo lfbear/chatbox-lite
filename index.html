@@ -667,6 +667,15 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
           <div class="form-row"><label data-i18n="general.maxTokens.label">Max output tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" inputmode="numeric" data-i18n-placeholder="general.maxTokens.placeholder" placeholder="Leave empty to use model default" /></div>
         </div>
         <div class="form-row"><label data-i18n="general.historyN.label">History messages kept (context length)</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" inputmode="numeric" /></div>
+        <div class="form-row">
+          <label data-i18n="general.imageDetail.label">Image upload quality (input tokens)</label>
+          <select id="cfg_image_detail">
+            <option value="high" data-i18n="general.imageDetail.high">High · up to 1568px (max detail, most tokens)</option>
+            <option value="standard" data-i18n="general.imageDetail.standard">Standard · up to 1024px (near-lossless, recommended)</option>
+            <option value="low" data-i18n="general.imageDetail.low">Saver · up to 640px (fewest tokens; OpenAI low-detail = flat 85)</option>
+          </select>
+          <span class="hint" data-i18n="general.imageDetail.hint">Vision tokens depend on image resolution, not file size — downscaling is what actually saves input tokens. Standard is visually near-lossless for most photos and screenshots.</span>
+        </div>
         <div class="form-row"><label><input id="cfg_scenario_autocompress" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.autoCompress.label">Auto-compress scenario memory</span></label><span class="hint" data-i18n="general.autoCompress.hint">For 🎬 scenario chats: when the live context exceeds the size below, older messages are automatically summarized into long-term memory.</span></div>
         <div class="form-row"><label data-i18n="general.compressChars.label">Auto-compress threshold (characters of live context)</label><input id="cfg_scenario_compress_chars" type="number" min="500" step="100" value="4000" inputmode="numeric" /></div>
         <div class="form-row"><label><input id="cfg_show_thinking" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.showThinking.label">Enable and show model thinking</span></label><span class="hint" data-i18n-html="general.showThinking.hint">When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.</span></div>
@@ -783,7 +792,8 @@ const DEFAULT_STATE = {
     userName:"",
     aiName:"AI",
     scenarioAutoCompress:true,
-    scenarioCompressChars:4000
+    scenarioCompressChars:4000,
+    imageDetail:"standard"
   },
   lastModel:""
 };
@@ -901,6 +911,11 @@ const I18N = {
     "general.autoCompress.label":"Auto-compress scenario memory",
     "general.autoCompress.hint":"For 🎬 scenario chats: when the live context exceeds the size below, older messages are automatically summarized into long-term memory.",
     "general.compressChars.label":"Auto-compress threshold (characters of live context)",
+    "general.imageDetail.label":"Image upload quality (input tokens)",
+    "general.imageDetail.high":"High · up to 1568px (max detail, most tokens)",
+    "general.imageDetail.standard":"Standard · up to 1024px (near-lossless, recommended)",
+    "general.imageDetail.low":"Saver · up to 640px (fewest tokens; OpenAI low-detail = flat 85)",
+    "general.imageDetail.hint":"Vision tokens depend on image resolution, not file size — downscaling is what actually saves input tokens. Standard is visually near-lossless for most photos and screenshots.",
     "general.showThinking.label":"Enable and show model thinking",
     "general.showThinking.hint":"When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.",
     "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br><b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br><b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to \"Settings\" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br><b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br><b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl/⌘+Shift+O for new chat (Ctrl/⌘+N as fallback) / Ctrl/⌘+K to clear context.<br><br><b>Install as desktop app</b>: when this page is served over HTTPS, use Chrome/Edge's ⋮ menu → \"Install Chatbox Lite\", or Safari's Share → \"Add to Dock / Home Screen\". Once installed, refresh by tapping the ↻ in the sidebar or pulling down on the message list.<br><br><b>Project</b>: <a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>Author</b>: <a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>",
@@ -1076,6 +1091,11 @@ const I18N = {
     "general.autoCompress.label":"自动压缩场景记忆",
     "general.autoCompress.hint":"针对 🎬 场景对话：当实时上下文超过下方设定的大小时，自动把较早的消息总结进长期记忆。",
     "general.compressChars.label":"自动压缩阈值（实时上下文字符数）",
+    "general.imageDetail.label":"图片上传画质（输入 token）",
+    "general.imageDetail.high":"高清 · 最长边 1568px（细节最全，token 最多）",
+    "general.imageDetail.standard":"标准 · 最长边 1024px（近乎无损，推荐）",
+    "general.imageDetail.low":"省流 · 最长边 640px（token 最少；OpenAI 低清=固定 85）",
+    "general.imageDetail.hint":"视觉 token 取决于图片分辨率而非文件大小——只有缩小分辨率才能真正节省输入 token。标准档对大多数照片和截图来说肉眼几乎无损。",
     "general.showThinking.label":"启用并显示模型思考过程",
     "general.showThinking.hint":"关闭后：折叠面板不显示；对 Gemini 2.5 会请求 <code>thinkingBudget:0</code> 节省 token；DeepSeek-R1 的 <code>&lt;think&gt;</code> 段落仍会被剥离不外露。",
     "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br><b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br><b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入\"设置\"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br><b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br><b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl/⌘+Shift+O 新建对话（Ctrl/⌘+N 作兜底）/ Ctrl/⌘+K 清除上下文。<br><br><b>安装为桌面应用</b>：当本页通过 HTTPS 访问时，在 Chrome/Edge 的 ⋮ 菜单选 \"安装 Chatbox Lite\"；Safari 用分享菜单的 \"添加到程序坞 / 主屏幕\"。安装后想刷新，点侧栏的 ↻ 按钮，或在消息列表顶端下拉。<br><br><b>项目地址</b>：<a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>作者</b>：<a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. 这个项目没有一行代码是作者敲的，全是 Claude 写的——我只是那个在旁边指手画脚的人。🫠</i>",
@@ -2384,16 +2404,33 @@ function renderAttachStrip(){
   });
 }
 
-async function compressImage(file, maxSide=1568, quality=0.85){
+/* Vision input tokens scale with image RESOLUTION (pixel count), not file size.
+   These presets trade resolution → tokens. JPEG quality only affects upload bytes. */
+const IMAGE_PRESETS = {
+  high:     { maxSide:1568, maxPixels:1568*1568, quality:0.85, detail:"high" },   // max detail
+  standard: { maxSide:1024, maxPixels:1024*1024, quality:0.82, detail:"high" },   // near-lossless, fewer tokens
+  low:      { maxSide:640,  maxPixels:640*640,   quality:0.8,  detail:"low" }     // OpenAI low = flat 85 tokens
+};
+function imagePreset(){
+  return IMAGE_PRESETS[state.general.imageDetail] || IMAGE_PRESETS.standard;
+}
+
+async function compressImage(file, preset){
+  preset = preset || imagePreset();
+  const { maxSide, maxPixels, quality } = preset;
   const url = URL.createObjectURL(file);
   try{
     const img = await new Promise((res, rej)=>{
       const im = new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=url;
     });
     let {naturalWidth:w, naturalHeight:h} = img;
-    if(Math.max(w,h) > maxSide){
-      const s = maxSide / Math.max(w,h); w = Math.round(w*s); h = Math.round(h*s);
-    }
+    // Compute a single downscale factor honoring both the long-edge and total-pixel caps.
+    // Never upscale (factor capped at 1).
+    let scale = 1;
+    if(Math.max(w,h) > maxSide) scale = maxSide / Math.max(w,h);
+    if(w*h*scale*scale > maxPixels) scale = Math.min(scale, Math.sqrt(maxPixels/(w*h)));
+    w = Math.max(1, Math.round(w*scale));
+    h = Math.max(1, Math.round(h*scale));
     const canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
@@ -2403,12 +2440,13 @@ async function compressImage(file, maxSide=1568, quality=0.85){
 }
 
 async function handleFiles(files){
+  const preset = imagePreset();
   for(const file of files){
     if(file.type.startsWith("image/")){
       let dataUrl;
-      try{ dataUrl = await compressImage(file); }
+      try{ dataUrl = await compressImage(file, preset); }
       catch{ dataUrl = await fileToDataUrl(file); }
-      pendingAttachments.push({kind:"image", name:file.name, mime:"image/jpeg", dataUrl});
+      pendingAttachments.push({kind:"image", name:file.name, mime:"image/jpeg", dataUrl, detail:preset.detail});
     }else{
       let text = "";
       try{
@@ -2828,7 +2866,7 @@ function buildOpenAIMessages(chat){
     const images = (m.attachments||[]).filter(a=>a.kind==="image");
     if(images.length){
       parts.push({type:"text", text:txt});
-      for(const img of images) parts.push({type:"image_url", image_url:{url:img.dataUrl}});
+      for(const img of images) parts.push({type:"image_url", image_url:{url:img.dataUrl, detail: img.detail || "auto"}});
       out.push({role:"user", content:parts});
     }else{
       out.push({role:"user", content:txt});
@@ -3072,6 +3110,7 @@ function openSettings(){
   document.getElementById("cfg_history_n").value = state.general.historyN;
   document.getElementById("cfg_scenario_autocompress").checked = state.general.scenarioAutoCompress !== false;
   document.getElementById("cfg_scenario_compress_chars").value = state.general.scenarioCompressChars || 4000;
+  document.getElementById("cfg_image_detail").value = state.general.imageDetail || "standard";
   document.getElementById("cfg_show_thinking").checked = !!state.general.showThinking;
   document.getElementById("cfg_user_name").value = state.general.userName || "";
   document.getElementById("cfg_ai_name").value = state.general.aiName || "";
@@ -3092,6 +3131,7 @@ function saveSettings(){
   state.general.historyN = Number(document.getElementById("cfg_history_n").value)||40;
   state.general.scenarioAutoCompress = document.getElementById("cfg_scenario_autocompress").checked;
   state.general.scenarioCompressChars = Math.max(500, Number(document.getElementById("cfg_scenario_compress_chars").value)||4000);
+  state.general.imageDetail = document.getElementById("cfg_image_detail").value || "standard";
   state.general.showThinking = document.getElementById("cfg_show_thinking").checked;
   state.general.userName = document.getElementById("cfg_user_name").value.trim() || t("userName.default");
   state.general.aiName = document.getElementById("cfg_ai_name").value.trim() || t("aiName.default");
