@@ -366,6 +366,9 @@ html[data-theme="dark"] .scroll-bottom-btn{box-shadow:0 2px 12px rgba(0,0,0,.4)}
 .provider-block{padding:12px;background:var(--bg-2);border-radius:10px;margin-bottom:10px}
 .provider-block h4{margin:0 0 10px;font-size:13.5px;display:flex;align-items:center;gap:8px}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.memory-history-row{display:flex;gap:8px;margin-top:6px}
+.memory-history-row select{flex:1;min-width:0}
+.memory-history-row .btn{padding:6px 12px;font-size:12px;white-space:nowrap}
 .model-label{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .fetch-btn{padding:3px 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:4px;background:var(--bg-3);color:var(--fg);border-radius:6px}
 .fetch-btn:hover{background:var(--accent);color:#fff}
@@ -676,8 +679,10 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
           </select>
           <span class="hint" data-i18n="general.imageDetail.hint">Vision tokens depend on image resolution, not file size — downscaling is what actually saves input tokens. Standard is visually near-lossless for most photos and screenshots.</span>
         </div>
+        <div class="form-row"><label data-i18n="general.attachKeepRecent.label">Keep attachments in context for the latest N messages</label><input id="cfg_attach_keep_recent" type="number" min="0" step="1" value="1" inputmode="numeric" /><span class="hint" data-i18n="general.attachKeepRecent.hint">Images/files are never carried forward as "memory": once a message with an attachment falls outside this many most-recent messages, only its text is resent — the attachment itself is dropped from the request. 1 = only the newest attachment is ever sent; 0 = never send attachments to the model at all.</span></div>
         <div class="form-row"><label><input id="cfg_scenario_autocompress" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.autoCompress.label">Auto-compress scenario memory</span></label><span class="hint" data-i18n="general.autoCompress.hint">For 🎬 scenario chats: when the live context exceeds the size below, older messages are automatically summarized into long-term memory.</span></div>
         <div class="form-row"><label data-i18n="general.compressChars.label">Auto-compress threshold (characters of live context)</label><input id="cfg_scenario_compress_chars" type="number" min="500" step="100" value="4000" inputmode="numeric" /></div>
+        <div class="form-row"><label data-i18n="general.memoryMaxChars.label">Scenario memory size cap (characters)</label><input id="cfg_scenario_memory_max_chars" type="number" min="200" step="100" value="800" inputmode="numeric" /><span class="hint" data-i18n="general.memoryMaxChars.hint">Hard limit on the compressed long-term memory itself — it is hard-truncated to this length after every compression, so memory can never grow without bound. Memory only ever stores text; attachments are never included.</span></div>
         <div class="form-row"><label><input id="cfg_show_thinking" type="checkbox" style="width:auto;margin-right:6px" /><span data-i18n="general.showThinking.label">Enable and show model thinking</span></label><span class="hint" data-i18n-html="general.showThinking.hint">When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.</span></div>
       </div>
 
@@ -730,6 +735,11 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
       <div class="form-row" id="sc_summaryRow" style="display:none">
         <label data-i18n="scenario.summary.label">🧠 Compressed memory (auto-generated, editable)</label>
         <textarea id="sc_summary" rows="4" data-i18n-placeholder="scenario.summary.placeholder" placeholder="No memory compressed yet. Use the 🧠 button in the composer to compress history."></textarea>
+        <div class="memory-history-row" id="sc_memoryHistoryRow" style="display:none">
+          <select id="sc_memory_history"></select>
+          <button type="button" class="btn ghost" id="sc_memory_restore" data-i18n="scenario.summary.restore">Restore this version</button>
+        </div>
+        <span class="hint" data-i18n="scenario.summary.history.hint">Every past memory version (from auto-compression or manual edits) is kept here so you can roll back if something important got summarized away. Restoring loads it into the box above — click Save to apply.</span>
       </div>
     </div>
     <div class="modal-footer">
@@ -793,7 +803,9 @@ const DEFAULT_STATE = {
     aiName:"AI",
     scenarioAutoCompress:true,
     scenarioCompressChars:4000,
-    imageDetail:"standard"
+    scenarioMemoryMaxChars:800,
+    imageDetail:"standard",
+    attachmentKeepRecent:1
   },
   lastModel:""
 };
@@ -827,7 +839,9 @@ const I18N = {
     "scenario.desc.label":"Scenario & tone instructions (the AI's persona / rules)",
     "scenario.desc.placeholder":"e.g. Casual Discord chat with overseas gamers; very colloquial tone, use abbreviations (lol) and emojis.",
     "scenario.summary.label":"🧠 Compressed memory (auto-generated, editable)",
-    "scenario.summary.placeholder":"No memory compressed yet. Use the 🧠 button in the composer to compress history.",
+    "scenario.summary.placeholder":"No memory compressed yet — this fills in automatically once the conversation grows large enough, or you can type your own.",
+    "scenario.summary.restore":"Restore this version",
+    "scenario.summary.history.hint":"Every past memory version (from auto-compression or manual edits) is kept here so you can roll back if something important got summarized away. Restoring loads it into the box above — click Save to apply.",
     "scenario.save":"Create chat",
     "scenario.save.edit":"Save",
     "scenario.edit.title":"Edit scenario settings",
@@ -916,6 +930,10 @@ const I18N = {
     "general.imageDetail.standard":"Standard · up to 1024px (near-lossless, recommended)",
     "general.imageDetail.low":"Saver · up to 640px (fewest tokens; OpenAI low-detail = flat 85)",
     "general.imageDetail.hint":"Vision tokens depend on image resolution, not file size — downscaling is what actually saves input tokens. Standard is visually near-lossless for most photos and screenshots.",
+    "general.attachKeepRecent.label":"Keep attachments in context for the latest N messages",
+    "general.attachKeepRecent.hint":"Images/files are never carried forward as \"memory\": once a message with an attachment falls outside this many most-recent messages, only its text is resent — the attachment itself is dropped from the request. 1 = only the newest attachment is ever sent; 0 = never send attachments to the model at all.",
+    "general.memoryMaxChars.label":"Scenario memory size cap (characters)",
+    "general.memoryMaxChars.hint":"Hard limit on the compressed long-term memory itself — it is hard-truncated to this length after every compression, so memory can never grow without bound. Memory only ever stores text; attachments are never included.",
     "general.showThinking.label":"Enable and show model thinking",
     "general.showThinking.hint":"When off: panel is hidden; for Gemini 2.5, <code>thinkingBudget:0</code> is requested to save tokens; DeepSeek-R1's <code>&lt;think&gt;</code> blocks are still stripped so they don't leak.",
     "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — a single-file browser-based multi-model chat page.<br><br><b>Supports</b>: OpenAI compatible / Claude / Gemini / Ollama / LM Studio · streaming · Markdown · code highlighting · KaTeX math · image vision · file upload (PDF/DOCX/TXT/code) · multi-session local persistence · light/dark theme · export/import.<br><br><b>Usage</b>: open <code>chatbox-lite.html</code> in your browser, go to \"Settings\" and configure your API keys. All data is stored in localStorage and never uploaded.<br><br><b>CORS tip</b>: browser-direct API calls are subject to same-origin policy. Official OpenAI/Claude/Gemini endpoints support CORS; if using a proxy, make sure CORS is enabled. For Ollama, set <code>OLLAMA_ORIGINS=*</code> before launch.<br><br><b>Shortcuts</b>: Enter to send / Shift+Enter for newline / Ctrl/⌘+Shift+O for new chat (Ctrl/⌘+N as fallback) / Ctrl/⌘+K to clear context.<br><br><b>Install as desktop app</b>: when this page is served over HTTPS, use Chrome/Edge's ⋮ menu → \"Install Chatbox Lite\", or Safari's Share → \"Add to Dock / Home Screen\". Once installed, refresh by tapping the ↻ in the sidebar or pulling down on the message list.<br><br><b>Project</b>: <a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>Author</b>: <a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. Not a single line of this codebase was typed by the author — Claude wrote it all. I'm just the guy standing next to it, pointing fingers and waving hands. 🫠</i>",
@@ -1007,7 +1025,9 @@ const I18N = {
     "scenario.desc.label":"翻译场景 & 语气润色设定（定制 AI 的角色 / 规则）",
     "scenario.desc.placeholder":"例如：在 Discord 上和老外联机聊天，语气极度口语化，多用缩写(lol)和表情。",
     "scenario.summary.label":"🧠 压缩记忆（自动生成，可编辑）",
-    "scenario.summary.placeholder":"尚未压缩任何记忆。点击输入框旁的 🧠 按钮可压缩历史。",
+    "scenario.summary.placeholder":"尚未压缩任何记忆——对话长到一定程度会自动生成，你也可以自己手动填写。",
+    "scenario.summary.restore":"恢复此版本",
+    "scenario.summary.history.hint":"这里保留了每一个历史记忆版本（无论来自自动压缩还是手动编辑），如果某次压缩不小心把重要内容概括没了，可以在这里回滚。恢复只是把选中的版本载入上方输入框，点「保存」才会真正生效。",
     "scenario.save":"创建对话",
     "scenario.save.edit":"保存",
     "scenario.edit.title":"编辑场景设定",
@@ -1096,6 +1116,10 @@ const I18N = {
     "general.imageDetail.standard":"标准 · 最长边 1024px（近乎无损，推荐）",
     "general.imageDetail.low":"省流 · 最长边 640px（token 最少；OpenAI 低清=固定 85）",
     "general.imageDetail.hint":"视觉 token 取决于图片分辨率而非文件大小——只有缩小分辨率才能真正节省输入 token。标准档对大多数照片和截图来说肉眼几乎无损。",
+    "general.attachKeepRecent.label":"附件仅在最近 N 条消息内随上下文发送",
+    "general.attachKeepRecent.hint":"图片/文件不会再作为「记忆」被反复携带：一条带附件的消息一旦超出这里设定的最近消息数，之后请求里只保留它的文字，附件本身会被丢弃、不再重发。设为 1 = 只发送最新一次的附件；设为 0 = 完全不把附件发给模型。",
+    "general.memoryMaxChars.label":"场景记忆大小上限（字符数）",
+    "general.memoryMaxChars.hint":"对压缩出的长期记忆本身设置硬上限——每次压缩后都会强制截断到这个长度，记忆不会无限增长。记忆只存文字，绝不包含附件内容。",
     "general.showThinking.label":"启用并显示模型思考过程",
     "general.showThinking.hint":"关闭后：折叠面板不显示；对 Gemini 2.5 会请求 <code>thinkingBudget:0</code> 节省 token；DeepSeek-R1 的 <code>&lt;think&gt;</code> 段落仍会被剥离不外露。",
     "about.body":"<b style=\"color:var(--fg)\">Chatbox Lite</b> — 一个单文件浏览器端多模型聊天页面。<br><br><b>支持</b>：OpenAI 兼容 / Claude / Gemini / Ollama / LM Studio · 流式输出 · Markdown · 代码高亮 · KaTeX 数学 · 图片视觉 · 文件上传（PDF/DOCX/TXT/代码） · 多会话本地持久化 · 浅深色主题 · 导出导入。<br><br><b>使用</b>：直接用浏览器打开 <code>chatbox-lite.html</code>，进入\"设置\"配置 API Key 即可。所有数据保存在 localStorage，不会上传。<br><br><b>CORS 提示</b>：浏览器直接调用 API 受同源策略影响。OpenAI/Claude/Gemini 官方端点支持 CORS；如使用代理服务，请确保已开启 CORS。Ollama 启动前需设置环境变量 <code>OLLAMA_ORIGINS=*</code>。<br><br><b>快捷键</b>：Enter 发送 / Shift+Enter 换行 / Ctrl/⌘+Shift+O 新建对话（Ctrl/⌘+N 作兜底）/ Ctrl/⌘+K 清除上下文。<br><br><b>安装为桌面应用</b>：当本页通过 HTTPS 访问时，在 Chrome/Edge 的 ⋮ 菜单选 \"安装 Chatbox Lite\"；Safari 用分享菜单的 \"添加到程序坞 / 主屏幕\"。安装后想刷新，点侧栏的 ↻ 按钮，或在消息列表顶端下拉。<br><br><b>项目地址</b>：<a href=\"https://github.com/lfbear/chatbox-lite\" target=\"_blank\" rel=\"noopener noreferrer\">github.com/lfbear/chatbox-lite</a><br><b>作者</b>：<a href=\"https://github.com/lfbear\" target=\"_blank\" rel=\"noopener noreferrer\">lfbear (小飞熊)</a><br><br><i style=\"color:var(--fg-2)\">P.S. 这个项目没有一行代码是作者敲的，全是 Claude 写的——我只是那个在旁边指手画脚的人。🫠</i>",
@@ -1773,8 +1797,11 @@ function switchChat(id){
   closeMobileSidebar();
 }
 
-/* Clear the LLM context but keep visible history. Inserts a divider marker. */
-function clearContext(){
+/* Clear the LLM context but keep visible history. Inserts a divider marker.
+   For 🎬 scenario chats, folds what's about to be cut into long-term memory
+   FIRST — otherwise a manual clear would silently discard everything before it
+   with no chance to preserve the gist, unlike auto-compression. */
+async function clearContext(){
   const chat = currentChat();
   if(!chat || !chat.messages.length) return;
   // No-op if last visible message is already a divider, or only dividers/empty since last divider
@@ -1788,8 +1815,17 @@ function clearContext(){
     flashStatus(t("context.empty"));
     return;
   }
-  chat.messages.push({ role:"divider", time: Date.now() });
-  saveState(); renderMessages();
+  let compressed = false;
+  if(chat.kind === "scenario"){
+    // Silent: falls back to a plain clear below if there's nothing worth
+    // compressing, no model is configured, or the compression call fails.
+    try{ compressed = await runCompression(chat, { keepRecent: 0, silent: true }); }
+    catch{ compressed = false; }
+  }
+  if(!compressed){
+    chat.messages.push({ role:"divider", time: Date.now() });
+    saveState(); renderMessages();
+  }
 }
 
 /* Undo a previous context-clear: remove the divider at idx */
@@ -1880,6 +1916,25 @@ function renderScenarioPresets(){
   });
 }
 
+/* Populate the memory-rollback dropdown for a scenario chat, most recent first. */
+function renderMemoryHistorySelect(chat){
+  const row = document.getElementById("sc_memoryHistoryRow");
+  const sel = document.getElementById("sc_memory_history");
+  const hist = (chat && chat.memoryHistory) || [];
+  if(!hist.length){ row.style.display = "none"; sel.innerHTML = ""; return; }
+  row.style.display = "";
+  sel.innerHTML = "";
+  [...hist].reverse().forEach((h, revIdx)=>{
+    const idx = hist.length - 1 - revIdx;
+    const o = document.createElement("option");
+    o.value = String(idx);
+    const label = new Date(h.time).toLocaleString(curLang()==="en" ? "en-US" : "zh-CN", {month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+    const preview = h.text.replace(/\n/g," ").slice(0,28);
+    o.textContent = `${label} · ${preview}${h.text.length>28?"…":""}`;
+    sel.appendChild(o);
+  });
+}
+
 function openScenarioModal(editId){
   _editingScenarioId = editId || null;
   renderScenarioPresets();
@@ -1893,6 +1948,7 @@ function openScenarioModal(editId){
     document.getElementById("sc_lang").value = sc.lang || "";
     document.getElementById("sc_desc").value = sc.desc || "";
     document.getElementById("sc_summary").value = c?.contextSummary || "";
+    renderMemoryHistorySelect(c);
     summaryRow.style.display = "";
     titleEl.textContent = t("scenario.modal.titleEdit");
     saveEl.textContent = t("scenario.save.edit");
@@ -1902,6 +1958,7 @@ function openScenarioModal(editId){
     document.getElementById("sc_lang").value = first.lang;
     document.getElementById("sc_desc").value = first.desc;
     document.getElementById("sc_summary").value = "";
+    document.getElementById("sc_memoryHistoryRow").style.display = "none";
     summaryRow.style.display = "none";
     titleEl.textContent = t("scenario.modal.titleNew");
     saveEl.textContent = t("scenario.save");
@@ -1921,7 +1978,14 @@ function saveScenario(){
     if(c){
       c.title = title || c.title;
       c.scenario = scenario;
-      c.contextSummary = document.getElementById("sc_summary").value.trim();
+      const newSummary = document.getElementById("sc_summary").value.trim();
+      if(newSummary !== (c.contextSummary||"")){
+        // Manual edits (including restoring an older version) are snapshotted
+        // too, so the rollback history covers the full edit chain, not just
+        // automatic compressions.
+        pushMemoryHistory(c, c.contextSummary);
+        c.contextSummary = newSummary;
+      }
     }
     closeScenarioModal();
     saveState(); renderChatList(); renderMessages(); updateTopBar();
@@ -1930,7 +1994,7 @@ function saveScenario(){
     const chat = {
       id, title: title || t("chat.new.default"),
       model: state.lastModel || "",
-      kind: "scenario", scenario, contextSummary: "",
+      kind: "scenario", scenario, contextSummary: "", memoryHistory: [],
       messages: [], createdAt: Date.now()
     };
     state.chats.unshift(chat);
@@ -1972,15 +2036,58 @@ async function oneShotLLM(modelId, systemPrompt, userContent, signal){
   return out.trim();
 }
 
-const SCENARIO_SUMMARIZER_PROMPT =
-`You are a conversation memory compression engine. Read the prior memory (if any) and the new conversation turns, then output an UPDATED consolidated memory in under 120 words.
+/* Memory only ever holds TEXT — attachments (images/files) are intentionally never
+   passed to the summarizer, so images can never bloat or leak into long-term memory. */
+function scenarioMemoryMaxChars(){
+  return Math.max(200, Number(state.general.scenarioMemoryMaxChars) || 800);
+}
+function buildScenarioSummarizerPrompt(maxChars){
+  // Rough word budget so the instruction scales with the configured cap (works
+  // decently for both CJK, ~1 char/word, and Latin scripts, ~5 chars/word).
+  const wordBudget = Math.max(40, Math.round(maxChars / 3));
+  return `You are a conversation memory compression engine. Read the prior memory (if any) and the new conversation turns, then output an UPDATED consolidated memory in under ${wordBudget} words (hard cap: the memory storage itself is limited to ${maxChars} characters, so stay concise).
 
-Capture and preserve:
+Capture and preserve, in priority order:
 1. The established relationship, persona and tone.
 2. Names, nicknames, pronouns and agreed terminology.
 3. Concrete facts, decisions, preferences and open threads.
 
-Merge the new turns into the prior memory; drop nothing important, deduplicate, keep it factual. Write in the same language the conversation mainly uses. Output ONLY a concise bulleted list — no preamble, no commentary.`;
+Attachments (images/files) are NOT included above and must NOT be described or invented — summarize only the text of the conversation. Merge the new turns into the prior memory; drop the least important details first if space is tight, deduplicate, keep it factual. Write in the same language the conversation mainly uses. Output ONLY a concise bulleted list — no preamble, no commentary.`;
+}
+
+/* Prefer cutting at a natural boundary (bullet line, then sentence end) instead of
+   a blind character cut, so a forced truncation doesn't chop a fact mid-sentence.
+   Only used as a safety net when the model ignores the length instruction. */
+function truncateMemoryText(text, maxChars){
+  if(text.length <= maxChars) return text;
+  let cut = text.slice(0, maxChars);
+  if(/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1); // never split a surrogate pair
+
+  const lastNewline = cut.lastIndexOf("\n");
+  if(lastNewline > maxChars * 0.5) return cut.slice(0, lastNewline).trim() + "\n…";
+
+  const boundary = Math.max(
+    cut.lastIndexOf("。"), cut.lastIndexOf("！"), cut.lastIndexOf("？"),
+    cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? ")
+  );
+  if(boundary > maxChars * 0.5) return cut.slice(0, boundary+1).trim() + "…";
+
+  return cut.trim() + "…"; // last resort: still bounded, just no clean boundary found
+}
+
+/* Snapshot the memory value that's about to be replaced, so a bad compression or
+   edit can be manually rolled back later from the scenario editor. Local-only —
+   never sent to the model, so it doesn't cost tokens; capped to avoid unbounded
+   localStorage growth over a long-lived chat. */
+const SCENARIO_MEMORY_HISTORY_CAP = 10;
+function pushMemoryHistory(chat, prevValue){
+  if(!(prevValue||"").trim()) return;
+  if(!Array.isArray(chat.memoryHistory)) chat.memoryHistory = [];
+  chat.memoryHistory.push({ text: prevValue, time: Date.now() });
+  if(chat.memoryHistory.length > SCENARIO_MEMORY_HISTORY_CAP){
+    chat.memoryHistory = chat.memoryHistory.slice(-SCENARIO_MEMORY_HISTORY_CAP);
+  }
+}
 
 /* Keep the most recent N real messages live; everything older gets folded into memory. */
 const SCENARIO_KEEP_RECENT = 4;
@@ -2003,15 +2110,20 @@ async function runCompression(chat, opts={}){
 
   flashStatus(t("scenario.compress.running"), 60000);
   const ctrl = new AbortController();
+  // Text only — attachments are deliberately never dumped into the summarizer input.
   let dump = "";
   toCompress.forEach(m=>{ dump += `${m.role === "user" ? "User" : "Assistant"}: ${m.content||""}\n\n`; });
   let userContent = "";
   if((chat.contextSummary||"").trim()) userContent += "【Prior memory】:\n" + chat.contextSummary.trim() + "\n\n";
   userContent += "【New conversation turns to merge】:\n" + dump;
 
-  const summary = await oneShotLLM(modelId, SCENARIO_SUMMARIZER_PROMPT, userContent, ctrl.signal);
+  const maxChars = scenarioMemoryMaxChars();
+  const summary = await oneShotLLM(modelId, buildScenarioSummarizerPrompt(maxChars), userContent, ctrl.signal);
   if(!summary) return false;
-  chat.contextSummary = summary;
+  pushMemoryHistory(chat, chat.contextSummary);
+  // Hard cap as a safety net in case the model ignores the length instruction —
+  // this is what actually bounds the overall size of "memory", not just a hint.
+  chat.contextSummary = truncateMemoryText(summary, maxChars);
   // Drop the compressed turns from the active window (keep them visible) via a divider.
   const firstKeep = keepRecent > 0 ? win[win.length - keepRecent] : null;
   const at = firstKeep ? chat.messages.indexOf(firstKeep) : -1;
@@ -2854,16 +2966,18 @@ function buildOpenAIMessages(chat){
   const sys = effectiveSystemPrompt(chat);
   if(sys) out.push({role:"system", content:sys});
   const msgs = lastN(chat.messages);
+  const allowAttach = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
     if(m.role==="assistant"){ out.push({role:"assistant", content:m.content}); continue; }
     // user
     const parts = [];
     let txt = m.content||"";
-    const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
+    const attachments = allowAttach.has(m) ? (m.attachments||[]) : [];
+    const fileTexts = attachments.filter(a=>a.kind==="file");
     if(fileTexts.length){
       txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n");
     }
-    const images = (m.attachments||[]).filter(a=>a.kind==="image");
+    const images = attachments.filter(a=>a.kind==="image");
     if(images.length){
       parts.push({type:"text", text:txt});
       for(const img of images) parts.push({type:"image_url", image_url:{url:img.dataUrl, detail: img.detail || "auto"}});
@@ -2902,12 +3016,15 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
   const messages = [];
   const sysO = effectiveSystemPrompt(chat);
   if(sysO) messages.push({role:"system", content:sysO});
-  for(const m of lastN(chat.messages)){
+  const msgsO = lastN(chat.messages);
+  const allowAttachO = computeAttachmentAllowSet(msgsO);
+  for(const m of msgsO){
     if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
     let txt = m.content||"";
-    const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
+    const attachments = allowAttachO.has(m) ? (m.attachments||[]) : [];
+    const fileTexts = attachments.filter(a=>a.kind==="file");
     if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
-    const images = (m.attachments||[]).filter(a=>a.kind==="image");
+    const images = attachments.filter(a=>a.kind==="image");
     const msg = {role:"user", content:txt};
     if(images.length){
       // 仅保留 base64 部分，不带 "data:image/...;base64," 前缀
@@ -2956,14 +3073,16 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
   const url = cfg.base.replace(/\/+$/,"") + "/messages";
   const messages = [];
   const msgs = lastN(chat.messages);
+  const allowAttachC = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
     if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
     const blocks = [];
     let txt = m.content||"";
-    const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
+    const attachmentsC = allowAttachC.has(m) ? (m.attachments||[]) : [];
+    const fileTexts = attachmentsC.filter(a=>a.kind==="file");
     if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     if(txt) blocks.push({type:"text", text:txt});
-    for(const img of (m.attachments||[]).filter(a=>a.kind==="image")){
+    for(const img of attachmentsC.filter(a=>a.kind==="image")){
       const [meta, b64] = img.dataUrl.split(",");
       const media_type = (meta.match(/data:(.*?);/)||[])[1] || "image/png";
       blocks.push({type:"image", source:{type:"base64", media_type, data:b64}});
@@ -2998,14 +3117,16 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
   const url = `${cfg.base.replace(/\/+$/,"")}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(cfg.key)}`;
   const contents = [];
   const msgs = lastN(chat.messages);
+  const allowAttachG = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
     if(m.role==="assistant"){ contents.push({role:"model", parts:[{text:m.content}]}); continue; }
     const parts = [];
     let txt = m.content||"";
-    const fileTexts = (m.attachments||[]).filter(a=>a.kind==="file");
+    const attachmentsG = allowAttachG.has(m) ? (m.attachments||[]) : [];
+    const fileTexts = attachmentsG.filter(a=>a.kind==="file");
     if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     if(txt) parts.push({text:txt});
-    for(const img of (m.attachments||[]).filter(a=>a.kind==="image")){
+    for(const img of attachmentsG.filter(a=>a.kind==="image")){
       const [meta, b64] = img.dataUrl.split(",");
       const mime = (meta.match(/data:(.*?);/)||[])[1] || "image/png";
       // Gemini REST 要 camelCase
@@ -3070,6 +3191,21 @@ function lastN(messages){
   return slice.slice(-n);
 }
 
+/* Attachments (images/files) are expensive "memory" — resending them on every
+   turn multiplies their token cost by how many turns they stay in the window.
+   Only the most recent N user turns that carry attachments actually get their
+   attachments included in the outgoing request; older turns keep their text
+   only. This applies uniformly across all providers. */
+function attachmentKeepRecent(){
+  const v = Number(state.general.attachmentKeepRecent);
+  return Number.isFinite(v) ? Math.max(0, v) : 1;
+}
+function computeAttachmentAllowSet(msgs){
+  const withAttachments = msgs.filter(m => m.role==="user" && (m.attachments||[]).length);
+  const keep = attachmentKeepRecent();
+  return new Set(keep > 0 ? withAttachments.slice(-keep) : []);
+}
+
 /* ------------------------- UI wiring ------------------------- */
 /* setSending 已被按会话隔离的 streamStart/streamPhase/streamEnd 取代。
    保留一个仅作用于"当前激活会话"的兼容入口，供非流式路径（如旧调用）使用。 */
@@ -3111,6 +3247,8 @@ function openSettings(){
   document.getElementById("cfg_scenario_autocompress").checked = state.general.scenarioAutoCompress !== false;
   document.getElementById("cfg_scenario_compress_chars").value = state.general.scenarioCompressChars || 4000;
   document.getElementById("cfg_image_detail").value = state.general.imageDetail || "standard";
+  document.getElementById("cfg_attach_keep_recent").value = state.general.attachmentKeepRecent ?? 1;
+  document.getElementById("cfg_scenario_memory_max_chars").value = state.general.scenarioMemoryMaxChars || 800;
   document.getElementById("cfg_show_thinking").checked = !!state.general.showThinking;
   document.getElementById("cfg_user_name").value = state.general.userName || "";
   document.getElementById("cfg_ai_name").value = state.general.aiName || "";
@@ -3132,6 +3270,8 @@ function saveSettings(){
   state.general.scenarioAutoCompress = document.getElementById("cfg_scenario_autocompress").checked;
   state.general.scenarioCompressChars = Math.max(500, Number(document.getElementById("cfg_scenario_compress_chars").value)||4000);
   state.general.imageDetail = document.getElementById("cfg_image_detail").value || "standard";
+  state.general.attachmentKeepRecent = Math.max(0, Number(document.getElementById("cfg_attach_keep_recent").value)||0);
+  state.general.scenarioMemoryMaxChars = Math.max(200, Number(document.getElementById("cfg_scenario_memory_max_chars").value)||800);
   state.general.showThinking = document.getElementById("cfg_show_thinking").checked;
   state.general.userName = document.getElementById("cfg_user_name").value.trim() || t("userName.default");
   state.general.aiName = document.getElementById("cfg_ai_name").value.trim() || t("aiName.default");
@@ -3548,6 +3688,12 @@ function init(){
   document.getElementById("closeScenario").onclick = closeScenarioModal;
   document.getElementById("cancelScenario").onclick = closeScenarioModal;
   document.getElementById("saveScenario").onclick = saveScenario;
+  document.getElementById("sc_memory_restore").onclick = ()=>{
+    const c = state.chats.find(x=>x.id===_editingScenarioId);
+    const sel = document.getElementById("sc_memory_history");
+    const h = c && (c.memoryHistory||[])[Number(sel.value)];
+    if(h) document.getElementById("sc_summary").value = h.text;
+  };
   document.getElementById("themeBtn").onclick = ()=>{ state.theme = state.theme==="dark"?"light":"dark"; saveState(); applyTheme(); reRenderAllMermaid(); };
   document.getElementById("langBtn").onclick = ()=>{ setLang(curLang()==="en" ? "zh" : "en"); };
   document.getElementById("reloadBtn").onclick = reloadApp;
