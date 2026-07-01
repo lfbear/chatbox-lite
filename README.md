@@ -14,13 +14,16 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 - **Visible thinking process**: Compatible with OpenAI `reasoning_content`, Ollama `thinking`, Claude `thinking_delta`, Gemini `thought`, and inline `<think>` / `<thinking>` tags (DeepSeek-R1, etc.). One-click toggle, auto-strips leaked prefixes.
 - **Full Markdown stack**: GFM tables, code highlighting (highlight.js), KaTeX math, DOMPurify XSS filtering.
 - **Vision + files**: Paste/drag-drop images; PDF / DOCX / TXT / source code parsed as context.
+- **Token-aware image & attachment handling**: three image-quality presets (High / Standard / Saver) trade resolution for input tokens — vision tokens scale with pixel count, not file size. A configurable "attachment retention window" also stops old images/files from being silently resent forever; only the most recent N messages keep their attachments, older ones fall back to text-only.
 - **Self-service model lists**: After filling in Base URL and API Key, click "🔄 Fetch model list" and pick the models you want from a checkbox panel — no more typos.
 - **Smart vendor detection**: In OpenAI-compatible mode, the vendor name is auto-extracted from the host as a prefix (`api.deepseek.com` → `DeepSeek · model`).
 - **Refined scroll behavior**: Manually scrolling up during streaming pauses auto-follow and floats a "back to latest" button with an unread dot.
 - **Personalization**: Custom user / AI display names, light/dark theme, system prompt, temperature, context length, thinking budget.
+- **🎬 Scenario chats + automatic memory**: a dedicated chat type for context-heavy tasks (fixed-tone translation, roleplay, language practice). Define a persona/tone + optional target language once; once the conversation grows large, older turns auto-compress into a compact long-term memory (hard size cap, boundary-aware truncation, rollback history) — see the dedicated section below.
 - **Multi-session**: Manage, rename, delete chats from the left sidebar; JSON export / import.
+- **Drag to reorder chats**: rearrange the sidebar chat list by dragging entries up or down.
 - **Per-message actions**: Regenerate (re-answer with a different model), edit & resend (puts the message back in the input and truncates what follows).
-- **Clear context, keep history**: Drop a "✂ Context cleared" divider with one click (or `Ctrl/⌘+K`) — past messages stay on screen but won't be sent to the model.
+- **Clear context, keep history**: Drop a "✂ Context cleared" divider with one click (or `Ctrl/⌘+K`) — past messages stay on screen but won't be sent to the model. On 🎬 scenario chats this compresses the discarded context into memory first, instead of just throwing it away.
 - **Responsive**: Collapsible sidebar on mobile, wide layout on desktop.
 - **Keyboard friendly**: `Enter` to send, `Shift+Enter` for newline, `Ctrl/⌘+N` for new chat.
 - **i18n**: Built-in English / Chinese UI switch (top-left "EN / 中" toggle).
@@ -36,6 +39,33 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 5. Pick a model from the top dropdown and start chatting.
 
 > You can also host it on any static server (Nginx / GitHub Pages / Cloudflare Pages); the single HTML file needs no build step.
+
+---
+
+## 🎬 Scenario chats & long-term memory
+
+For anything that needs a **persistent context** — translation with a fixed tone, a roleplay persona, a language-practice partner — use a **🎬 scenario chat** instead of a regular one.
+
+**Creating one**: sidebar → **🎬 New scenario** → pick a golden preset or write your own:
+
+- **Scenario & tone instructions** — the persona/rules baked into the system prompt on every turn (e.g. *"Casual Discord chat with overseas gamers; colloquial tone, use abbreviations like lol"*).
+- **Target language** *(optional)* — for translation/practice scenarios, replies are always produced in this language regardless of what language you type in.
+
+**Editing later**: hover a scenario chat in the sidebar and click its **⚙** icon, or open it and click the **🎬** icon in the top bar.
+
+**Automatic memory — no button to press**:
+
+- Once the live context (messages since the last compression or clear) grows past a size threshold, older turns are automatically summarized into a compact memory and folded into the system prompt on every future request; the most recent few turns stay live for continuity.
+- The summary only ever contains text — images/files are never fed into the summarizer and never described in memory.
+- Memory has a hard character cap; if the model's summary runs long, it's trimmed at the nearest bullet/sentence boundary instead of mid-sentence.
+- Every past memory version is kept (up to 10) — open the scenario editor to see the history dropdown and **restore** an older version if a compression accidentally dropped something important.
+- Clicking **✂ Clear context** on a scenario chat compresses first, then clears — so manually clearing never just throws context away.
+- Tunable in **Settings → General**: auto-compress on/off, the size threshold, and the memory character cap.
+
+**Token-saving controls** (Settings → General, apply to every chat, not just scenarios):
+
+- **Image upload quality** — High / Standard / Saver presets trade image resolution for input tokens, since vision tokens scale with pixel count, not file size (JPEG quality only affects upload bytes).
+- **Attachment retention window** — images/files are no longer resent forever as "memory"; only the most-recent N messages (default 1) keep their attachments in the request, older ones fall back to text-only. Applies uniformly across all four providers.
 
 ---
 
@@ -141,6 +171,8 @@ All libraries are loaded via CDN; if you want fully offline use, replace the `<s
 - No Function Calling / Tool Use (this app focuses on plain conversation).
 - No streaming token usage stats (some providers don't return them either).
 - Image generation, TTS, ASR, and other non-chat capabilities are out of scope.
+- Scenario memory compression is LLM-generated summarization — inherently lossy by design (it decides what's "important"). Use the memory-history rollback in the scenario editor if a compression drops something you needed.
+- Drag-to-reorder works via desktop mouse drag; touch/mobile chat reordering isn't supported yet.
 
 ---
 
@@ -183,13 +215,16 @@ MIT
 - **思考过程可视化**：兼容 OpenAI `reasoning_content`、Ollama `thinking`、Claude `thinking_delta`、Gemini `thought`、以及内联 `<think>` / `<thinking>` 标签（DeepSeek-R1 等），可一键开关、自动剥离泄漏前缀。
 - **Markdown 全家桶**：GFM 表格、代码高亮（highlight.js）、KaTeX 数学公式、DOMPurify XSS 过滤。
 - **视觉 + 文件**：图片粘贴/拖拽、PDF / DOCX / TXT / 代码文件解析为上下文。
+- **图片 / 附件的 token 优化**：三档图片画质（高清 / 标准 / 省流）用分辨率换输入 token —— 视觉 token 由像素数决定，不是文件大小；还有一个可调的"附件保留窗口"，防止旧图片/文件被无限期重复发送——只有最近 N 条消息会保留附件，更早的只留文字。
 - **模型列表自助拉取**：填完 Base URL 和 API Key，点"🔄 获取模型列表"，从复选框面板里勾选要用的模型，告别手填错字。
 - **智能厂商识别**：OpenAI 兼容模式下，自动从 host 提取厂商名作为前缀（`api.deepseek.com` → `DeepSeek · model`）。
 - **细致的滚动控制**：流式输出时手动上滚即暂停自动跟随，浮出"回到最新"按钮，含未读小红点。
 - **个性化**：自定义"用户名 / AI 名称"、深浅色主题、系统提示词、温度、上下文长度、思考预算。
+- **🎬 场景对话 + 自动记忆**：专为需要长期上下文的场景设计的对话类型（固定语气翻译、角色扮演、语言陪练）。一次性定义角色/语气 + 可选目标语言；聊得久了，较早的内容会自动压缩成一段简洁的长期记忆（带硬性大小上限、按边界截断、可回滚的版本历史）——详见下方专门章节。
 - **多会话**：左侧栏管理对话、改名、删除；支持 JSON 导出 / 导入。
+- **拖拽调整对话顺序**：在侧栏上下拖动对话条目即可重新排序。
 - **消息级操作**：重新生成（换模型重答）、编辑重发（把消息放回输入框并截断后续）。
-- **清除上下文、保留历史**：一键（或 `Ctrl/⌘+K`）插入"✂ 上下文已清除"分隔线 —— 历史消息仍在屏幕上，但不会再发送给模型。
+- **清除上下文、保留历史**：一键（或 `Ctrl/⌘+K`）插入"✂ 上下文已清除"分隔线 —— 历史消息仍在屏幕上，但不会再发送给模型。在 🎬 场景对话里，这个操作会先把要丢弃的上下文压缩进记忆，而不是直接扔掉。
 - **响应式**：移动端折叠侧栏、桌面端宽布局。
 - **键盘友好**：`Enter` 发送、`Shift+Enter` 换行、`Ctrl/⌘+N` 新建对话。
 - **多语言**：内置中英文 UI 切换（左上角"EN / 中"按钮）。
@@ -205,6 +240,33 @@ MIT
 5. 顶部下拉选模型，开聊。
 
 > 也可以挂到任意静态服务器（Nginx / GitHub Pages / Cloudflare Pages），单个 HTML 文件无需构建。
+
+---
+
+## 🎬 场景对话与长期记忆
+
+需要**长期保持某种语境**的场景——固定语气的翻译、角色扮演、语言陪练——用 **🎬 场景对话** 而不是普通对话。
+
+**创建方式**：侧栏 → **🎬 新建场景** → 选一个黄金模版，或自己填写：
+
+- **场景 & 语气设定** —— 每一轮都会写进系统提示词的角色/规则（例如"在 Discord 上和老外联机聊天，语气极度口语化，多用缩写(lol)"）。
+- **目标语言**（可选）—— 用于翻译/语言陪练类场景，无论你用什么语言输入，回复都固定用这个语言。
+
+**之后编辑**：把鼠标移到侧栏的场景对话上，点 **⚙** 图标；或者打开它，点顶栏的 **🎬** 图标。
+
+**自动记忆 —— 不用点任何按钮**：
+
+- 当前活动上下文（自上次压缩/清除以来的消息）超过设定的大小阈值后，较早的部分会自动被总结成一段简洁记忆，写进之后每一轮请求的系统提示词；最近几轮消息保持原样，保证衔接自然。
+- 记忆只存文字——图片/文件从不会被喂给压缩器，也绝不会被写进记忆里。
+- 记忆设有硬性字符上限；如果模型总结超长，会在最近的一个 bullet / 句子边界处截断，而不是从句子中间硬切。
+- 每一个历史版本都会保留（最多 10 个）——打开场景编辑面板能看到历史下拉框，如果某次压缩不小心把重要内容概括没了，可以**恢复**到更早的版本。
+- 在场景对话里点 **✂ 清除上下文** 会先压缩、再清空——手动清除也不会把内容白白丢掉。
+- 可在 **设置 → 通用** 里调节：自动压缩开关、触发阈值、记忆字符上限。
+
+**省 token 的控制项**（设置 → 通用，对所有对话生效，不限于场景对话）：
+
+- **图片上传画质** —— 高清 / 标准 / 省流三档，本质是用分辨率换 token，因为视觉 token 由像素数决定而非文件大小（JPEG 画质只影响上传体积）。
+- **附件保留窗口** —— 图片/文件不会再作为"记忆"被永久重发；只有最近 N 条消息（默认 1）会在请求里保留附件，更早的消息只保留文字。四个供应商统一生效。
 
 ---
 
@@ -310,6 +372,8 @@ MIT
 - 不支持 Function Calling / Tool Use（专注于普通对话场景）。
 - 不支持流式 token 用量统计（部分供应商也不返回）。
 - 图像生成、TTS、ASR 等非聊天能力不在范围内。
+- 场景记忆压缩本质是模型生成的摘要——设计上就是有损的（由模型判断什么"重要"）。如果某次压缩丢了你需要的内容，可以在场景编辑面板里用记忆历史回滚。
+- 拖拽排序目前只支持桌面端鼠标拖动，移动端触屏暂不支持。
 
 ---
 
