@@ -1838,6 +1838,7 @@ function switchChat(id){
   state.activeChatId = id; saveState(); renderChatList(); renderMessages(); updateTopBar();
   document.getElementById("modelSelect").value = currentChat()?.model || "";
   syncComposerUI(); // 切换会话后，按目标会话是否在流式中刷新发送/停止按钮
+  if(appMode === "cli") cliRenderTranscript();
   closeMobileSidebar();
 }
 
@@ -3009,10 +3010,7 @@ function setAppMode(mode){
   else setTimeout(()=>document.getElementById("input")?.focus(), 0);
 }
 function openCli(){
-  if(!document.getElementById("cliScreen").dataset.booted){
-    document.getElementById("cliScreen").dataset.booted = "1";
-    cliPrint("Chatbox Lite Web CLI · type `help`", "muted");
-  }
+  cliRenderTranscript();
   setTimeout(()=>document.getElementById("cliInput").focus(), 0);
 }
 function cliScreen(){ return document.getElementById("cliScreen"); }
@@ -3023,6 +3021,32 @@ function cliPrint(text="", cls=""){
   cliScreen().appendChild(line);
   cliScreen().scrollTop = cliScreen().scrollHeight;
   return line;
+}
+function cliRenderTranscript(){
+  const screen = cliScreen();
+  screen.innerHTML = "";
+  const chat = currentChat();
+  cliPrint("Chatbox Lite Web CLI · type `help`", "muted");
+  if(!chat){
+    cliPrint("No active chat", "muted");
+    return;
+  }
+  cliPrint(`active: ${chat.title || t("chat.untitled")}  ${chat.model || state.lastModel || ""}`.trim(), "muted");
+  const msgs = (chat.messages||[]).filter(m=>["user","assistant","divider"].includes(m.role));
+  if(!msgs.length){
+    cliPrint("No messages yet. Use `ask <message>`.", "muted");
+    return;
+  }
+  for(const m of msgs){
+    if(m.role === "divider"){
+      cliPrint("--- context cleared ---", "muted");
+      continue;
+    }
+    const who = m.role === "user" ? "you" : "ai";
+    const content = (m.content || "").trim();
+    if(content) cliPrint(`${who}> ${content}`, m.role === "user" ? "cmd" : "stream");
+    else if(m.role === "assistant") cliPrint("ai> …", "muted");
+  }
 }
 function cliSetBusy(on){
   webCliBusy = !!on;
@@ -3092,14 +3116,16 @@ async function cliHandle(line){
     newChat();
     const c = currentChat();
     if(rest && c){ c.title = rest.slice(0, 60); saveState(); renderChatList(); updateTopBar(); }
+    cliRenderTranscript();
     cliPrint("created chat = " + (c?.title || c?.id || ""), "muted");
     return;
   }
-  if(cmd==="context-clear"){ await clearContext(); cliPrint("context cleared", "muted"); return; }
+  if(cmd==="context-clear"){ await clearContext(); cliRenderTranscript(); cliPrint("context cleared", "muted"); return; }
   if(cmd==="clear-chat"){
     const c = currentChat();
     if(!c){ cliPrint("No active chat", "err"); return; }
     c.messages = []; saveState(); renderMessages();
+    cliRenderTranscript();
     cliPrint("chat cleared", "muted");
     return;
   }
