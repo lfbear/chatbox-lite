@@ -22,6 +22,7 @@ Zero dependencies, zero backend, zero install. All data lives in your browser's 
 - **🎬 Scenario chats + automatic memory**: a dedicated chat type for context-heavy tasks (fixed-tone translation, roleplay, language practice). Define a persona/tone + optional target language once; once the conversation grows large, older turns auto-compress into a compact long-term memory (hard size cap, boundary-aware truncation, rollback history) — see the dedicated section below.
 - **Multi-session**: Manage, rename, delete chats from the left sidebar; JSON export / import.
 - **Drag to reorder chats**: rearrange the sidebar chat list by dragging entries up or down.
+- **Web CLI mode**: switch the main workspace into a terminal-style view for `models`, `chats`, `use`, `new`, and streaming `ask` commands against the same browser state.
 - **Per-message actions**: Regenerate (re-answer with a different model), edit & resend (puts the message back in the input and truncates what follows).
 - **Clear context, keep history**: Drop a "✂ Context cleared" divider with one click (or `Ctrl/⌘+K`) — past messages stay on screen but won't be sent to the model. On 🎬 scenario chats this compresses the discarded context into memory first, instead of just throwing it away.
 - **Responsive**: Collapsible sidebar on mobile, wide layout on desktop.
@@ -163,6 +164,31 @@ Pure static, no build step:
 
 All libraries are loaded via CDN; if you want fully offline use, replace the `<script>` / `<link>` URLs with local paths.
 
+### Node refactor track
+
+The browser app remains a single-page/static app. Node is used only for development-side refactoring, tests, and future CLI support:
+
+```bash
+npm run test:core   # smoke-test the shared chat core
+npm run build:html  # emit dist/index.html as the single-file browser artifact
+```
+
+The extracted core currently lives in `src/chat-core.mjs`; the next step is to move browser UI calls onto that shared core before adding the CLI entry.
+
+### CLI preview
+
+The Node CLI uses the same state shape as the browser export/import format:
+
+```bash
+npm run cli -- state-path
+npm run cli -- config set config.openai.key sk-...
+npm run cli -- config set config.openai.base https://api.openai.com/v1
+npm run cli -- models list
+npm run cli -- ask -m openai::gpt-4o "Hello"
+```
+
+By default the CLI stores state at `~/.chatbox-lite/state.json`. Set `CHATBOX_LITE_STATE=/path/to/state.json` to use a different file.
+
 ---
 
 ## 📋 Known limitations
@@ -223,6 +249,7 @@ MIT
 - **🎬 场景对话 + 自动记忆**：专为需要长期上下文的场景设计的对话类型（固定语气翻译、角色扮演、语言陪练）。一次性定义角色/语气 + 可选目标语言；聊得久了，较早的内容会自动压缩成一段简洁的长期记忆（带硬性大小上限、按边界截断、可回滚的版本历史）——详见下方专门章节。
 - **多会话**：左侧栏管理对话、改名、删除；支持 JSON 导出 / 导入。
 - **拖拽调整对话顺序**：在侧栏上下拖动对话条目即可重新排序。
+- **Web CLI 模式**：将主工作区切换为终端式视图，用 `models`、`chats`、`use`、`new`、流式 `ask` 等命令操作同一份浏览器状态。
 - **消息级操作**：重新生成（换模型重答）、编辑重发（把消息放回输入框并截断后续）。
 - **清除上下文、保留历史**：一键（或 `Ctrl/⌘+K`）插入"✂ 上下文已清除"分隔线 —— 历史消息仍在屏幕上，但不会再发送给模型。在 🎬 场景对话里，这个操作会先把要丢弃的上下文压缩进记忆，而不是直接扔掉。
 - **响应式**：移动端折叠侧栏、桌面端宽布局。
@@ -363,6 +390,31 @@ MIT
 - [mammoth.js](https://github.com/mwilliamson/mammoth.js) · DOCX 文本提取
 
 所有库均通过 CDN 引入；如需完全离线，把 `<script>` / `<link>` 改成本地路径即可。
+
+### Node 重构路线
+
+浏览器应用仍然保持单页/纯静态。Node 只用于开发侧重构、测试，以及后续 CLI 支持：
+
+```bash
+npm run test:core   # 冒烟测试共享聊天核心
+npm run build:html  # 生成 dist/index.html 单文件浏览器产物
+```
+
+已抽出的核心位于 `src/chat-core.mjs`；下一步是把浏览器 UI 调用逐步迁移到这个共享核心上，然后再增加 CLI 入口。
+
+### CLI 预览
+
+Node CLI 使用与浏览器导出 / 导入兼容的同一套 state 结构：
+
+```bash
+npm run cli -- state-path
+npm run cli -- config set config.openai.key sk-...
+npm run cli -- config set config.openai.base https://api.openai.com/v1
+npm run cli -- models list
+npm run cli -- ask -m openai::gpt-4o "Hello"
+```
+
+默认状态文件位于 `~/.chatbox-lite/state.json`。可以通过 `CHATBOX_LITE_STATE=/path/to/state.json` 指定其他文件。
 
 ---
 

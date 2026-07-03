@@ -194,6 +194,7 @@ body.standalone .pwa-only{display:inline-flex}
 .sidebar-footer{padding:8px;border-top:1px solid var(--border);display:flex;gap:6px}
 .sidebar-footer button{flex:1;padding:8px;border-radius:8px;color:var(--fg-2);font-size:13px;display:flex;align-items:center;justify-content:center;gap:4px}
 .sidebar-footer button:hover{background:var(--bg-3);color:var(--fg)}
+.sidebar-footer button.active{background:var(--accent);color:#fff}
 .github-link{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;color:var(--fg-2);opacity:.22;filter:grayscale(1);transition:opacity .25s ease,color .25s ease,filter .3s ease;border-radius:6px;text-decoration:none;align-self:center}
 .github-link:hover{opacity:1;filter:grayscale(0);color:var(--fg);background:var(--bg-3)}
 .github-link svg{width:14px;height:14px;display:block}
@@ -203,6 +204,14 @@ body.standalone .pwa-only{display:inline-flex}
 .top-bar{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--bg)}
 .top-bar .title{flex:1;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-bar select{font-size:13px;padding:6px 8px;min-width:180px}
+.mode-switch{display:inline-grid;grid-template-columns:1fr 1fr;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg-2);flex:none}
+.mode-tab{padding:6px 12px;font-size:12.5px;color:var(--fg-2);background:transparent;border-radius:0;min-width:54px}
+.mode-tab:hover{background:var(--bg-3);color:var(--fg)}
+.mode-tab.active{background:var(--accent);color:#fff}
+.chat-view{flex:1;display:flex;flex-direction:column;min-height:0}
+.chat-view.hide{display:none}
+.cli-view{flex:1;display:flex;flex-direction:column;min-height:0;background:#0d1117;color:#e6edf3}
+.cli-view.hide{display:none}
 .messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:20px 0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .msg-wrap{max-width:840px;margin:0 auto;padding:0 20px;box-sizing:border-box}
 .msg{display:flex;gap:12px;margin-bottom:18px;position:relative}
@@ -387,6 +396,17 @@ html[data-theme="dark"] .scroll-bottom-btn{box-shadow:0 2px 12px rgba(0,0,0,.4)}
 .kv{font-size:12.5px;color:var(--fg-2);margin-top:4px}
 .alert{padding:10px 12px;border-radius:8px;font-size:12.5px;background:#fff7e6;color:#8a5b00;border:1px solid #ffe2a8;margin-bottom:12px}
 html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a4515}
+.cli-screen{flex:1;overflow:auto;padding:14px 16px;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:pre-wrap;word-break:break-word;background:#0d1117}
+.cli-line{margin:0 0 6px}
+.cli-line.cmd{color:#7ee787}
+.cli-line.err{color:#ff7b72}
+.cli-line.muted{color:#8b949e}
+.cli-line.stream{color:#e6edf3}
+.cli-input-row{border-top:1px solid #30363d;background:#161b22;display:flex;align-items:center;gap:8px;padding:10px 14px;font:13px ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.cli-prompt{color:#7ee787;white-space:nowrap}
+.cli-input-row input{flex:1;min-width:0;border:0;background:transparent;color:#e6edf3;padding:4px 0;font:inherit;border-radius:0}
+.cli-input-row input:focus{border-color:transparent;outline:none}
+.cli-input-row.busy{opacity:.7}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--fg-2);text-align:center;padding:40px}
 .empty-state h2{font-size:22px;margin:0 0 8px;color:var(--fg)}
 .empty-state .prompts{margin-top:24px;display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:600px;width:100%}
@@ -415,9 +435,11 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
   .sidebar-footer button{padding:10px 6px}
 
   /* Top bar: keep everything on one line on narrow screens */
-  .top-bar{padding:8px 12px;gap:6px;padding-top:max(8px, env(safe-area-inset-top))}
+  .top-bar{padding:8px 12px;gap:6px;padding-top:max(8px, env(safe-area-inset-top));flex-wrap:wrap}
   .top-bar .title{font-size:13px;flex:1;min-width:0}
   .top-bar select{min-width:0;max-width:46vw;font-size:13px;padding:6px 6px}
+  .mode-switch{order:4;width:100%}
+  .mode-tab{padding:7px 10px}
   .thinking-toggle{padding:5px 8px;font-size:11.5px}
   .thinking-toggle span:last-child{display:none}
 
@@ -516,31 +538,45 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
     <div class="top-bar">
       <button class="icon-btn menu-btn" id="menuBtn">☰</button>
       <span class="title" id="chatTitle">New chat</span>
+      <div class="mode-switch" role="tablist" aria-label="View mode">
+        <button type="button" class="mode-tab active" id="chatModeBtn" data-mode="chat" data-i18n="mode.chat">Chat</button>
+        <button type="button" class="mode-tab" id="cliModeBtn" data-mode="cli" data-i18n="mode.cli">CLI</button>
+      </div>
       <button class="icon-btn" id="scenarioBtn" data-i18n-title="scenario.edit.title" title="Edit scenario" style="display:none">🎬</button>
       <button type="button" class="thinking-toggle" id="thinkingToggle" data-i18n-title="thinking.toggle.title" title="Enable/show model thinking"><span class="sw"></span><span data-i18n="thinking.label">Thinking</span></button>
       <select id="modelSelect" data-i18n-title="model.select.title" title="Select model"></select>
     </div>
 
-    <div class="messages" id="messages"></div>
+    <section class="chat-view" id="chatView">
+      <div class="messages" id="messages"></div>
 
-    <div class="composer-wrap">
-      <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn" data-i18n-title="scroll.bottom.title" data-i18n-aria="scroll.bottom.aria" title="Scroll to latest" aria-label="Scroll to latest">↓<span class="new-dot"></span></button>
-      <div class="composer">
-        <div class="attach-strip" id="attachStrip"></div>
-        <textarea id="input" rows="1" data-i18n-placeholder="composer.input.placeholder" placeholder="Type a message. Shift+Enter for newline, Enter to send. Paste/drop images and files supported…"></textarea>
-        <div class="composer-actions">
-          <button class="icon-btn" id="attachImageBtn" data-i18n-title="attach.image.title" title="Upload image">🖼</button>
-          <button class="icon-btn" id="attachFileBtn" data-i18n-title="attach.file.title" title="Upload file (PDF/Word/TXT/code)">📎</button>
-          <input type="file" id="fileInput" multiple style="display:none" />
-          <span class="composer-sep" aria-hidden="true"></span>
-          <button class="icon-btn" id="clearCtxBtn" data-i18n-title="context.clear.title" title="Clear context (Ctrl/⌘+K)">✂</button>
-          <button class="icon-btn" id="clearBtn" data-i18n-title="chat.clear.title" title="Clear current chat">🗑</button>
-          <span class="spacer"></span>
-          <span class="hint" id="statusHint"></span>
-          <button class="send-btn" id="sendBtn" data-i18n-title="send.title" title="Send">➤</button>
+      <div class="composer-wrap">
+        <button type="button" class="scroll-bottom-btn" id="scrollBottomBtn" data-i18n-title="scroll.bottom.title" data-i18n-aria="scroll.bottom.aria" title="Scroll to latest" aria-label="Scroll to latest">↓<span class="new-dot"></span></button>
+        <div class="composer">
+          <div class="attach-strip" id="attachStrip"></div>
+          <textarea id="input" rows="1" data-i18n-placeholder="composer.input.placeholder" placeholder="Type a message. Shift+Enter for newline, Enter to send. Paste/drop images and files supported…"></textarea>
+          <div class="composer-actions">
+            <button class="icon-btn" id="attachImageBtn" data-i18n-title="attach.image.title" title="Upload image">🖼</button>
+            <button class="icon-btn" id="attachFileBtn" data-i18n-title="attach.file.title" title="Upload file (PDF/Word/TXT/code)">📎</button>
+            <input type="file" id="fileInput" multiple style="display:none" />
+            <span class="composer-sep" aria-hidden="true"></span>
+            <button class="icon-btn" id="clearCtxBtn" data-i18n-title="context.clear.title" title="Clear context (Ctrl/⌘+K)">✂</button>
+            <button class="icon-btn" id="clearBtn" data-i18n-title="chat.clear.title" title="Clear current chat">🗑</button>
+            <span class="spacer"></span>
+            <span class="hint" id="statusHint"></span>
+            <button class="send-btn" id="sendBtn" data-i18n-title="send.title" title="Send">➤</button>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
+
+    <section class="cli-view hide" id="cliView">
+      <div class="cli-screen" id="cliScreen" aria-live="polite"></div>
+      <form class="cli-input-row" id="cliForm" autocomplete="off">
+        <span class="cli-prompt">chatbox&gt;</span>
+        <input id="cliInput" spellcheck="false" autocapitalize="none" autocomplete="off" placeholder="help" data-i18n-placeholder="cli.input.placeholder" />
+      </form>
+    </section>
   </main>
 </div>
 
@@ -856,6 +892,8 @@ const I18N = {
     "sidebar.settings":"⚙ Settings",
     "sidebar.export":"⬇ Export",
     "sidebar.import":"⬆ Import",
+    "cli.title":"Web CLI",
+    "cli.input.placeholder":"help",
     "github.title":"GitHub · lfbear/chatbox-lite",
     "github.aria":"GitHub repository",
     "chat.untitled":"Untitled",
@@ -863,6 +901,8 @@ const I18N = {
     "chat.action.rename":"Rename",
     "chat.action.delete":"Delete",
     "chat.clear.title":"Clear current chat",
+    "mode.chat":"Chat",
+    "mode.cli":"CLI",
     "model.select.title":"Select model",
     "model.select.empty":"(Configure models in Settings)",
     "thinking.label":"Thinking",
@@ -1042,6 +1082,8 @@ const I18N = {
     "sidebar.settings":"⚙ 设置",
     "sidebar.export":"⬇ 导出",
     "sidebar.import":"⬆ 导入",
+    "cli.title":"Web CLI",
+    "cli.input.placeholder":"help",
     "github.title":"GitHub · lfbear/chatbox-lite",
     "github.aria":"GitHub 仓库",
     "chat.untitled":"未命名",
@@ -1049,6 +1091,8 @@ const I18N = {
     "chat.action.rename":"重命名",
     "chat.action.delete":"删除",
     "chat.clear.title":"清空当前对话",
+    "mode.chat":"对话",
+    "mode.cli":"CLI",
     "model.select.title":"选择模型",
     "model.select.empty":"(请在设置中配置模型)",
     "thinking.label":"思考",
@@ -2922,6 +2966,239 @@ async function streamResponse(chat, aiMsg, modelId){
   saveState();
 }
 
+/* ------------------------- Web CLI mode ------------------------- */
+let webCliBusy = false;
+let appMode = "chat";
+const WEB_CLI_HELP_EN =
+`Commands:
+  help                       Show this help
+  models                     List configured models
+  model <provider::model>    Set model for the current chat
+  chats                      List chats
+  use <number|chat-id>       Switch active chat
+  new [title]                Create a new chat
+  ask <message>              Send a message in the current chat
+  context-clear              Clear LLM context, keep visible history
+  clear-chat                 Clear current chat messages
+  clear                      Clear this terminal
+
+The Web CLI uses the same localStorage state and provider settings as the UI.`;
+const WEB_CLI_HELP_ZH =
+`命令：
+  help                       显示帮助
+  models                     列出已配置模型
+  model <provider::model>    设置当前对话模型
+  chats                      列出对话
+  use <序号|chat-id>         切换当前对话
+  new [标题]                 新建普通对话
+  ask <消息>                 在当前对话发送消息
+  context-clear              清除上下文，保留可见历史
+  clear-chat                 清空当前对话消息
+  clear                      清空终端
+
+Web CLI 与图形界面共用同一份 localStorage 状态和供应商设置。`;
+
+function setAppMode(mode){
+  appMode = mode === "cli" ? "cli" : "chat";
+  closeMobileSidebar();
+  document.getElementById("chatView").classList.toggle("hide", appMode !== "chat");
+  document.getElementById("cliView").classList.toggle("hide", appMode !== "cli");
+  document.getElementById("chatModeBtn").classList.toggle("active", appMode === "chat");
+  document.getElementById("cliModeBtn").classList.toggle("active", appMode === "cli");
+  if(appMode === "cli") openCli();
+  else setTimeout(()=>document.getElementById("input")?.focus(), 0);
+}
+function openCli(){
+  if(!document.getElementById("cliScreen").dataset.booted){
+    document.getElementById("cliScreen").dataset.booted = "1";
+    cliPrint("Chatbox Lite Web CLI · type `help`", "muted");
+  }
+  setTimeout(()=>document.getElementById("cliInput").focus(), 0);
+}
+function cliScreen(){ return document.getElementById("cliScreen"); }
+function cliPrint(text="", cls=""){
+  const line = document.createElement("div");
+  line.className = "cli-line" + (cls ? " " + cls : "");
+  line.textContent = text;
+  cliScreen().appendChild(line);
+  cliScreen().scrollTop = cliScreen().scrollHeight;
+  return line;
+}
+function cliSetBusy(on){
+  webCliBusy = !!on;
+  const input = document.getElementById("cliInput");
+  const form = document.getElementById("cliForm");
+  input.disabled = webCliBusy;
+  form.classList.toggle("busy", webCliBusy);
+  if(!webCliBusy) setTimeout(()=>input.focus(), 0);
+}
+function cliParse(line){
+  const s = (line||"").trim();
+  if(!s) return {cmd:"", rest:""};
+  const m = s.match(/^(\S+)(?:\s+([\s\S]*))?$/);
+  return {cmd:(m?.[1]||"").toLowerCase(), rest:(m?.[2]||"").trim()};
+}
+function cliResolveChat(ref){
+  const s = (ref||"").trim();
+  if(!s) return null;
+  const idx = Number(s);
+  if(Number.isInteger(idx) && idx >= 1 && idx <= state.chats.length) return state.chats[idx-1];
+  return state.chats.find(c=>c.id===s) || null;
+}
+function cliSelectedModel(){
+  const c = currentChat();
+  return c?.model || document.getElementById("modelSelect").value || state.lastModel || "";
+}
+async function cliHandle(line){
+  const {cmd, rest} = cliParse(line);
+  if(!cmd) return;
+  cliPrint("chatbox> " + line, "cmd");
+  if(cmd==="help" || cmd==="?"){ cliPrint(curLang()==="en" ? WEB_CLI_HELP_EN : WEB_CLI_HELP_ZH, "muted"); return; }
+  if(cmd==="clear"){ cliScreen().innerHTML = ""; return; }
+  if(cmd==="models"){
+    const models = getAllModels();
+    if(!models.length){ cliPrint(t("model.select.empty"), "muted"); return; }
+    models.forEach((m,i)=>cliPrint(`${i+1}. ${m.id}  ${m.label}`));
+    return;
+  }
+  if(cmd==="model"){
+    if(!rest){ cliPrint(cliSelectedModel() || t("model.select.empty"), "muted"); return; }
+    const exists = getAllModels().some(m=>m.id===rest);
+    if(!exists){ cliPrint("Unknown model: " + rest, "err"); return; }
+    let c = currentChat();
+    if(!c){ newChat(); c = currentChat(); }
+    c.model = rest; state.lastModel = rest;
+    document.getElementById("modelSelect").value = rest;
+    saveState(); renderChatList(); updateTopBar();
+    cliPrint("model = " + rest, "muted");
+    return;
+  }
+  if(cmd==="chats"){
+    if(!state.chats.length){ cliPrint("No chats", "muted"); return; }
+    state.chats.forEach((c,i)=>{
+      const mark = c.id===state.activeChatId ? "*" : " ";
+      cliPrint(`${mark} ${i+1}. ${c.title || t("chat.untitled")}  ${c.id}`);
+    });
+    return;
+  }
+  if(cmd==="use"){
+    const c = cliResolveChat(rest);
+    if(!c){ cliPrint("Chat not found: " + rest, "err"); return; }
+    switchChat(c.id);
+    cliPrint("active chat = " + (c.title || c.id), "muted");
+    return;
+  }
+  if(cmd==="new"){
+    newChat();
+    const c = currentChat();
+    if(rest && c){ c.title = rest.slice(0, 60); saveState(); renderChatList(); updateTopBar(); }
+    cliPrint("created chat = " + (c?.title || c?.id || ""), "muted");
+    return;
+  }
+  if(cmd==="context-clear"){ await clearContext(); cliPrint("context cleared", "muted"); return; }
+  if(cmd==="clear-chat"){
+    const c = currentChat();
+    if(!c){ cliPrint("No active chat", "err"); return; }
+    c.messages = []; saveState(); renderMessages();
+    cliPrint("chat cleared", "muted");
+    return;
+  }
+  if(cmd==="ask"){
+    if(!rest){ cliPrint("Usage: ask <message>", "err"); return; }
+    await cliAsk(rest);
+    return;
+  }
+  cliPrint("Unknown command: " + cmd + " (type `help`)", "err");
+}
+async function cliAsk(text){
+  let chat = currentChat();
+  if(!chat){ newChat(); chat = currentChat(); }
+  const modelId = cliSelectedModel();
+  if(!modelId){ cliPrint(t("alert.modelRequiredSend"), "err"); return; }
+  chat.model = modelId; state.lastModel = modelId;
+  const userMsg = { role:"user", content:text, attachments:[], time:Date.now() };
+  const aiMsg = { role:"assistant", content:"", reasoning:"", reasoningMs:0, thought:false, time:Date.now() };
+  chat.messages.push(userMsg, aiMsg);
+  if(chat.messages.filter(m=>m.role==="user").length===1 && (!chat.title || chat.title===t("chat.new.default"))){
+    chat.title = text.slice(0,30);
+  }
+  saveState(); populateModelSelect(); renderChatList(); renderMessages(); updateTopBar();
+  const outLine = cliPrint("", "stream");
+  cliSetBusy(true);
+  try{
+    await cliStreamResponse(chat, aiMsg, modelId, outLine);
+    if(chat.kind === "scenario") maybeAutoCompress(chat);
+  }finally{
+    cliSetBusy(false);
+  }
+}
+async function cliStreamResponse(chat, aiMsg, modelId, outLine){
+  const [provider, model] = modelId.split("::");
+  const cfg = state.config[provider];
+  const ctrl = new AbortController();
+  streamStart(chat.id, ctrl, t("status.connecting"));
+  let firstChunkSeen = false;
+  let reasoningStart = 0;
+  let inReasoning = false;
+  const markFirstChunk = ()=>{
+    if(firstChunkSeen) return;
+    firstChunkSeen = true;
+    streamPhase(chat.id, t("status.generating"));
+  };
+  const onReasoning = (delta)=>{
+    markFirstChunk();
+    if(!inReasoning){ inReasoning = true; reasoningStart = Date.now(); aiMsg.thought = true; }
+    if(state.general.showThinking) aiMsg.reasoning += delta;
+  };
+  const onContent = (delta)=>{
+    markFirstChunk();
+    if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; inReasoning = false; }
+    aiMsg.content += delta;
+    outLine.textContent += delta;
+    cliScreen().scrollTop = cliScreen().scrollHeight;
+  };
+  let runOnce;
+  try{
+    if(provider==="ollama"){
+      const useNative = await pickLocalProtocol(cfg);
+      runOnce = useNative
+        ? ()=>callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning})
+        : ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider:"ollama"});
+    }else if(provider==="openai") runOnce = ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider});
+    else if(provider==="claude") runOnce = ()=>callClaude({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+    else if(provider==="gemini") runOnce = ()=>callGemini({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+    else throw new Error("Unknown provider: " + provider);
+
+    const maxAttempts = Math.max(1, (Number(state.general.emptyRetries) || 2) + 1);
+    for(let attempt=1; attempt<=maxAttempts; attempt++){
+      aiMsg.content = ""; aiMsg.reasoning = ""; aiMsg.thought = false; aiMsg.reasoningMs = 0;
+      outLine.textContent = "";
+      firstChunkSeen = false; inReasoning = false;
+      if(attempt>1){
+        streamPhase(chat.id, t("status.retrying", attempt, maxAttempts));
+        cliPrint(t("status.retrying", attempt, maxAttempts), "muted");
+        await new Promise(r=>setTimeout(r, 400*(attempt-1)));
+      }
+      let err = null;
+      try{ await runOnce(); }catch(e){ err = e; }
+      const gotSomething = aiMsg.content.trim()!=="" || aiMsg.reasoning.trim()!=="";
+      if(!err && gotSomething) break;
+      if(attempt < maxAttempts && isRetryableLLM(err)) continue;
+      if(err){
+        const errText = `\n\n${t("msg.error.label")}: ${err.message}`;
+        aiMsg.content += errText;
+        outLine.textContent += errText;
+      }
+      else if(!gotSomething){ aiMsg.content = t("msg.empty"); outLine.textContent = aiMsg.content; }
+      break;
+    }
+    if(inReasoning) aiMsg.reasoningMs = Date.now() - reasoningStart;
+  }finally{
+    streamEnd(chat.id);
+    saveState(); renderMessages(); renderChatList(); updateTopBar();
+  }
+}
+
 /* -------- OpenAI compat (OpenAI / DeepSeek / Moonshot / Ollama / LM Studio) -------- */
 function normalizeBase(base, provider){
   let b = (base||"").replace(/\/+$/,"");
@@ -3698,6 +3975,17 @@ function init(){
   document.getElementById("langBtn").onclick = ()=>{ setLang(curLang()==="en" ? "zh" : "en"); };
   document.getElementById("reloadBtn").onclick = reloadApp;
   document.getElementById("settingsBtn").onclick = openSettings;
+  document.getElementById("chatModeBtn").onclick = ()=>setAppMode("chat");
+  document.getElementById("cliModeBtn").onclick = ()=>setAppMode("cli");
+  document.getElementById("cliForm").onsubmit = async (e)=>{
+    e.preventDefault();
+    if(webCliBusy) return;
+    const input = document.getElementById("cliInput");
+    const line = input.value;
+    input.value = "";
+    try{ await cliHandle(line); }
+    catch(err){ cliPrint(err.message || String(err), "err"); }
+  };
   document.getElementById("closeSettings").onclick = closeSettings;
   document.getElementById("cancelSettings").onclick = closeSettings;
   document.getElementById("saveSettings").onclick = saveSettings;
