@@ -225,11 +225,13 @@ body.standalone .pwa-only{display:inline-flex}
 .msg.system .avatar{background:#a89060}
 .msg .body{flex:1;min-width:0}
 .msg .role{font-size:12px;color:var(--fg-2);margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.msg .msg-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:12px;margin-top:6px;opacity:0;transition:opacity .15s}
+.msg .role .msg-time{font-size:11px;color:var(--fg-2);opacity:.7;font-weight:400}
+.msg .msg-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:14px;margin-top:6px;opacity:0;transition:opacity .15s}
 .msg:hover .msg-actions{opacity:1}
 .msg .msg-actions:empty{display:none}
-.msg .msg-actions .copy,.msg .msg-actions .act{font-size:11px;color:var(--fg-2);cursor:pointer;user-select:none;line-height:1}
+.msg .msg-actions .copy,.msg .msg-actions .act{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--fg-2);cursor:pointer;user-select:none;line-height:1}
 .msg .msg-actions .copy:hover,.msg .msg-actions .act:hover{color:var(--accent)}
+.msg .msg-actions svg.mi{width:13px;height:13px;flex-shrink:0}
 .msg .content{line-height:1.75;font-size:15px;word-wrap:break-word;overflow-wrap:anywhere;color:var(--fg);min-width:0;max-width:100%}
 .msg .content p{margin:0.4em 0}
 .msg .content p:first-child{margin-top:0}
@@ -1146,9 +1148,13 @@ const I18N = {
     "empty.prompt.4.text":"Give me a compact 5-day itinerary for Tokyo.",
     "msg.copy":"Copy",
     "msg.copied":"Copied",
-    "msg.regenerate":"🔄 Regenerate",
+    "time.justNow":"just now",
+    "time.minAgo":"{0} min ago",
+    "time.hourAgo":"{0}h ago",
+    "time.yesterday":"Yesterday {0}",
+    "msg.regenerate":"Regenerate",
     "msg.regenerate.title":"Regenerate with the currently selected model",
-    "msg.edit":"✏ Edit & resend",
+    "msg.edit":"Edit & resend",
     "msg.edit.title":"Put this message back into the input box (subsequent messages will be removed)",
     "msg.role.system":"System",
     "waiting.aria":"Waiting for response",
@@ -1364,9 +1370,13 @@ const I18N = {
     "empty.prompt.4.text":"给我一份去东京 5 天的紧凑行程",
     "msg.copy":"复制",
     "msg.copied":"已复制",
-    "msg.regenerate":"🔄 重新生成",
+    "time.justNow":"刚刚",
+    "time.minAgo":"{0} 分钟前",
+    "time.hourAgo":"{0} 小时前",
+    "time.yesterday":"昨天 {0}",
+    "msg.regenerate":"重新生成",
     "msg.regenerate.title":"用当前选中的模型重新作答",
-    "msg.edit":"✏ 编辑重发",
+    "msg.edit":"编辑重发",
     "msg.edit.title":"把这条消息放回输入框（之后的对话将被删除）",
     "msg.role.system":"系统",
     "waiting.aria":"等待响应",
@@ -2620,6 +2630,36 @@ function deriveAvatarText(name){
   if(/^[A-Za-z0-9]/.test(chars[0])) return chars.slice(0,2).join("").toUpperCase();
   return chars[0];
 }
+
+/* 消息时间：相对易读格式 + hover 完整时间 */
+function _pad2(n){ return String(n).padStart(2,"0"); }
+function _clock(d){ return _pad2(d.getHours())+":"+_pad2(d.getMinutes()); }
+function fmtMsgTime(ts){
+  if(!ts) return "";
+  const now = Date.now(), d = new Date(ts), diff = now - ts;
+  if(diff < 0) return _clock(d);
+  if(diff < 60000) return t("time.justNow");
+  if(diff < 3600000) return t("time.minAgo", Math.floor(diff/60000));
+  if(diff < 6*3600000) return t("time.hourAgo", Math.floor(diff/3600000));
+  const startOf = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dayDiff = Math.round((startOf(new Date()) - startOf(d)) / 86400000);
+  if(dayDiff <= 0) return _clock(d);
+  if(dayDiff === 1) return t("time.yesterday", _clock(d));
+  if(d.getFullYear() === new Date().getFullYear()) return _pad2(d.getMonth()+1)+"-"+_pad2(d.getDate())+" "+_clock(d);
+  return d.getFullYear()+"-"+_pad2(d.getMonth()+1)+"-"+_pad2(d.getDate())+" "+_clock(d);
+}
+function fmtMsgTimeFull(ts){
+  if(!ts) return "";
+  try{ return new Date(ts).toLocaleString(curLang()==="en"?"en-US":"zh-CN"); }catch{ return ""; }
+}
+
+/* 消息操作图标（单色线性，风格与侧栏统一） */
+const MSG_ICON = {
+  copy: '<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="13" height="13" x="9" y="9" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  note: '<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>',
+  regen: '<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>',
+  edit: '<svg class="mi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+};
 function renderMessageEl(m, idx){
   // Context divider — visual-only marker, not sent to the model
   if(m.role === "divider"){
@@ -2652,12 +2692,12 @@ function renderMessageEl(m, idx){
   div.innerHTML = `
     <div class="avatar">${escapeHtml(avatar)}</div>
     <div class="body">
-      <div class="role">${escapeHtml(roleLabel)}</div>
+      <div class="role">${escapeHtml(roleLabel)}${m.time?`<span class="msg-time" title="${escapeHtml(fmtMsgTimeFull(m.time))}">${escapeHtml(fmtMsgTime(m.time))}</span>`:""}</div>
       <div class="thinking-slot"></div>
       ${html}
       <div class="attachments"></div>
       ${m.meta?`<div class="meta">${escapeHtml(m.meta)}</div>`:""}
-      <div class="msg-actions"><span class="copy" data-copy>${escapeHtml(t("msg.copy"))}</span></div>
+      <div class="msg-actions"></div>
     </div>`;
   // render existing thinking (历史消息)
   if(m.role==="assistant" && (m.thought || m.reasoning)){
@@ -2700,32 +2740,35 @@ function renderMessageEl(m, idx){
       attEl.appendChild(c);
     }
   }
-  div.querySelector("[data-copy]").addEventListener("click",()=>{
-    navigator.clipboard.writeText(m.i18nKey ? t(m.i18nKey) : (m.content||""));
-  });
-  // 操作入口统一放在对话块右下角
+  // 操作入口统一放在对话块右下角：图标 + 文字（单色线性，风格与侧栏一致）
   const actionBar = div.querySelector(".msg-actions");
+  const mkAction = (icon, label, title, onClick, cls)=>{
+    const el = document.createElement("span");
+    el.className = cls || "act";
+    el.innerHTML = icon + `<span class="lbl">${escapeHtml(label)}</span>`;
+    if(title) el.title = title;
+    el.addEventListener("click",(e)=>{ e.stopPropagation(); onClick(el); });
+    actionBar.appendChild(el);
+    return el;
+  };
+  // 复制
+  mkAction(MSG_ICON.copy, t("msg.copy"), t("msg.copy"), (el)=>{
+    navigator.clipboard.writeText(m.i18nKey ? t(m.i18nKey) : (m.content||""));
+    const lbl = el.querySelector(".lbl"); const orig = lbl.textContent;
+    lbl.textContent = t("msg.copied"); setTimeout(()=>{ lbl.textContent = orig; }, 1200);
+  }, "copy");
   // 存入记事本（用户 & AI 消息都可）
-  if((m.role==="user" || m.role==="assistant")){
-    const save = document.createElement("span");
-    save.className = "act"; save.textContent = t("notepad.msg.save");
-    save.title = t("notepad.msg.save.title");
-    save.addEventListener("click",(e)=>{ e.stopPropagation(); saveMessageToNotepad(m, save); });
-    actionBar.appendChild(save);
+  if(m.role==="user" || m.role==="assistant"){
+    mkAction(MSG_ICON.note, t("notepad.msg.save"), t("notepad.msg.save.title"),
+      (el)=>saveMessageToNotepad(m, el.querySelector(".lbl")));
   }
+  // 重发（AI）
   if(m.role === "assistant" && idx != null){
-    const btn = document.createElement("span");
-    btn.className = "act"; btn.textContent = t("msg.regenerate");
-    btn.title = t("msg.regenerate.title");
-    btn.addEventListener("click",(e)=>{ e.stopPropagation(); regenerateAssistant(idx); });
-    actionBar.appendChild(btn);
+    mkAction(MSG_ICON.regen, t("msg.regenerate"), t("msg.regenerate.title"), ()=>regenerateAssistant(idx));
   }
+  // 编辑（用户）
   if(m.role === "user" && idx != null){
-    const btn = document.createElement("span");
-    btn.className = "act"; btn.textContent = t("msg.edit");
-    btn.title = t("msg.edit.title");
-    btn.addEventListener("click",(e)=>{ e.stopPropagation(); editUserMessage(idx); });
-    actionBar.appendChild(btn);
+    mkAction(MSG_ICON.edit, t("msg.edit"), t("msg.edit.title"), ()=>editUserMessage(idx));
   }
   return div;
 }
