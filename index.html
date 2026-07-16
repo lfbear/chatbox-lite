@@ -1172,6 +1172,14 @@ const I18N = {
     "msg.empty":"_[Empty response — the model returned no content after several attempts. Try resending, or check the model/server.]_",
     "msg.error.label":"Error",
     "msg.error.suffix":"Please check the API Key, Base URL, model name, network, and CORS settings.",
+    "msg.error.network":"Couldn't reach the server. Check that it's running and the Base URL/port are correct; for local models make sure CORS is open (Ollama: `OLLAMA_ORIGINS=*`).",
+    "msg.error.mixedContent":"This page is served over HTTPS but the Base URL is plain HTTP, so the browser blocked the request (mixed content). Use an HTTPS endpoint, or open this page over HTTP to reach a local model.",
+    "msg.error.timeoutHint":"The request timed out. A local model may still be loading into memory (try again), or the server may be stuck. You can also raise the timeout.",
+    "msg.error.visionMaybe":"This looks like it may be because the model/server doesn't support image input. Try a vision-capable model, or remove the image.",
+    "msg.truncated":"Output was cut off (reached the max output tokens limit).",
+    "msg.blocked":"The response was stopped by a safety/content filter.",
+    "msg.timeout.connect":"Timed out waiting for the server to respond.",
+    "msg.timeout.stall":"The response stalled (no new tokens for a while).",
     "alert.baseUrlRequired":"Please fill in the Base URL first.",
     "attach.label":"[Attachment: {0}]",
     "userName.default":"Me",
@@ -1394,6 +1402,14 @@ const I18N = {
     "msg.empty":"_[空响应 — 多次尝试后模型仍未返回内容。可重新发送，或检查模型/服务端。]_",
     "msg.error.label":"错误",
     "msg.error.suffix":"请检查 API Key、Base URL、模型名、网络以及 CORS 设置。",
+    "msg.error.network":"无法连接到服务。请确认服务已启动、Base URL/端口正确；本地模型需开启 CORS（Ollama：`OLLAMA_ORIGINS=*`）。",
+    "msg.error.mixedContent":"当前页面是 HTTPS，而 Base URL 是普通 HTTP，被浏览器按“混合内容”拦截。请改用 HTTPS 端点，或以 HTTP 方式打开本页来访问本地模型。",
+    "msg.error.timeoutHint":"请求超时。本地模型可能仍在加载进显存（可重试），或服务端卡住了；也可以调大超时时间。",
+    "msg.error.visionMaybe":"这可能是因为该模型/服务不支持图片输入。请换用支持视觉的模型，或移除图片。",
+    "msg.truncated":"输出被截断（达到最大输出 token 上限）。",
+    "msg.blocked":"回复被安全/内容策略中断。",
+    "msg.timeout.connect":"等待服务端响应超时。",
+    "msg.timeout.stall":"响应停顿（较长时间没有新 token）。",
     "alert.baseUrlRequired":"请先填写 Base URL",
     "attach.label":"【附件: {0}】",
     "userName.default":"我",
@@ -3078,6 +3094,7 @@ function makeThinkTagParser(onReasoning, onContent){
 function isRetryableLLM(err){
   if(!err) return true;                          // clean finish, no tokens → retry
   if(err.name === "AbortError") return false;    // user pressed stop
+  if(err.name === "TimeoutError") return true;   // connect/stall watchdog fired
   if(err.name === "TypeError") return true;      // network/CORS/connection reset
   if(typeof err.status === "number" && err.status >= 500) return true; // server busy / model loading
   return false;                                  // 4xx, auth, parse errors → don't hammer
@@ -3087,6 +3104,9 @@ async function streamResponse(chat, aiMsg, modelId){
   const [provider, model] = modelId.split("::");
   const cfg = state.config[provider];
   const chatId = chat.id;
+  // 本次请求是否携带了图片（用于在 400 时提示"该模型/服务可能不支持视觉"）
+  const _allowImg = computeAttachmentAllowSet(lastN(chat.messages));
+  const sentImages = [..._allowImg].some(m => (m.attachments||[]).some(a=>a.kind==="image"));
   // 仅当此会话正处于前台时才允许操作 DOM —— 这是会话隔离的关键。
   const onActive = ()=> state.activeChatId === chatId;
   const ctrl = new AbortController();
@@ -3095,8 +3115,10 @@ async function streamResponse(chat, aiMsg, modelId){
   let reasoningStart = 0;
   let inReasoning = false;
   let firstChunkSeen = false;
+  let lastActivity = Date.now();   // 供超时看门狗判定停顿
 
   const markFirstChunk = ()=>{
+    lastActivity = Date.now();
     if(firstChunkSeen) return;
     firstChunkSeen = true;
     streamPhase(chatId, t("status.generating"));
@@ -3157,14 +3179,14 @@ async function streamResponse(chat, aiMsg, modelId){
   };
 
   const onReasoning = (delta)=>{
-    markFirstChunk();
+    markFirstChunk(); lastActivity = Date.now();
     // 不管开关都标记"在思考"，让指示器始终可见，避免假死
     if(!inReasoning){ inReasoning = true; reasoningStart = Date.now(); aiMsg.thought = true; }
     if(state.general.showThinking) aiMsg.reasoning += delta; // 仅当开启时累积内容
     refresh();
   };
   const onContent = (delta)=>{
-    markFirstChunk();
+    markFirstChunk(); lastActivity = Date.now();
     if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; inReasoning = false; }
     aiMsg.content += delta;
     refresh();
@@ -3176,23 +3198,29 @@ async function streamResponse(chat, aiMsg, modelId){
   if(provider==="ollama"){
     const useNative = await pickLocalProtocol(cfg);
     runOnce = useNative
-      ? ()=>callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning})
-      : ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider:"ollama"});
+      ? (signal)=>callOllamaNative({cfg, model, chat, signal, onContent, onReasoning})
+      : (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, provider:"ollama"});
   }else if(provider==="openai"){
-    runOnce = ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider});
+    runOnce = (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, provider});
   }else if(provider==="claude"){
-    runOnce = ()=>callClaude({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+    runOnce = (signal)=>callClaude({cfg, model, chat, signal, onContent, onReasoning});
   }else if(provider==="gemini"){
-    runOnce = ()=>callGemini({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
+    runOnce = (signal)=>callGemini({cfg, model, chat, signal, onContent, onReasoning});
   }else{
     runOnce = async ()=>{};
   }
+
+  // 超时看门狗：首字节前用"连接超时"，出字节后用"停顿超时"（token 间隔）。
+  // 本地模型冷加载较慢，连接超时给得宽；服务端卡死时靠停顿超时自动中断并重试。
+  const CONNECT_MS = Math.max(5000, Number(state.general.connectTimeoutMs) || 60000);
+  const STALL_MS   = Math.max(5000, Number(state.general.stallTimeoutMs)   || 60000);
 
   // Local servers (llama.cpp / LM Studio / Ollama) occasionally close the
   // stream with no tokens at all — a clean 200 but an empty answer. Auto-retry
   // a few times so a transient empty/failed response recovers itself instead of
   // surfacing a blank bubble. Tunable via state.general.emptyRetries.
   const maxAttempts = Math.max(1, (Number(state.general.emptyRetries) || 2) + 1);
+  let lastErr = null;
   for(let attempt=1; attempt<=maxAttempts; attempt++){
     // Reset accumulation + indicators for this attempt.
     aiMsg.content = ""; aiMsg.reasoning = ""; aiMsg.thought = false; aiMsg.reasoningMs = 0;
@@ -3203,18 +3231,44 @@ async function streamResponse(chat, aiMsg, modelId){
       await new Promise(r=>setTimeout(r, 400*(attempt-1))); // small linear backoff
     }
 
-    let err = null;
-    try{ await runOnce(); }
-    catch(e){ err = e; }
+    // 每次尝试独立的中止信号：用户停止 or 看门狗超时都会触发它，
+    // 但共享的 ctrl（停止按钮）只创建一次、不会因超时而作废后续重试。
+    const attemptCtrl = new AbortController();
+    const onUserAbort = ()=>attemptCtrl.abort();
+    if(ctrl.signal.aborted) attemptCtrl.abort();
+    else ctrl.signal.addEventListener("abort", onUserAbort, {once:true});
+    let timedOut = false;
+    lastActivity = Date.now();
+    const watch = setInterval(()=>{
+      const idle = Date.now() - lastActivity;
+      const limit = firstChunkSeen ? STALL_MS : CONNECT_MS;
+      if(idle > limit){ timedOut = true; attemptCtrl.abort(); }
+    }, 1000);
 
-    if(err && err.name==="AbortError"){ aiMsg.content += "\n\n" + t("msg.aborted"); break; }
+    let err = null;
+    try{ await runOnce(attemptCtrl.signal); }
+    catch(e){ err = e; }
+    finally{ clearInterval(watch); ctrl.signal.removeEventListener("abort", onUserAbort); }
+
+    // 用户主动停止：中止且非超时触发
+    if(err && err.name==="AbortError" && !timedOut){ aiMsg.content += "\n\n" + t("msg.aborted"); break; }
+    // 看门狗触发的中止：转成可重试的超时错误
+    if(timedOut && err && err.name==="AbortError"){
+      err = new Error(firstChunkSeen ? t("msg.timeout.stall") : t("msg.timeout.connect"));
+      err.name = "TimeoutError";
+    }
+    lastErr = err;
 
     const gotSomething = aiMsg.content.trim()!=="" || aiMsg.reasoning.trim()!=="";
     if(!err && gotSomething) break;                                  // good response
     if(attempt < maxAttempts && isRetryableLLM(err)) continue;       // transient → retry
 
     // Out of attempts, or a non-retryable error: surface the outcome.
-    if(err){ aiMsg.content += `\n\n> ❌ **${t("msg.error.label")}**: ${err.message}\n\n${t("msg.error.suffix")}`; }
+    if(err){
+      let hint = networkHint(err, cfg);
+      if(err.status === 400 && sentImages) hint = t("msg.error.visionMaybe") + "\n\n" + hint;
+      aiMsg.content += `\n\n> ❌ **${t("msg.error.label")}**: ${err.message}\n\n${hint}`;
+    }
     else if(!gotSomething){ aiMsg.content = t("msg.empty"); }
     break;
   }
@@ -3532,12 +3586,46 @@ function normalizeBase(base, provider){
   if(provider==="ollama" && !/\/v\d+$/.test(b)) b += "/v1";
   return b;
 }
+/* 温度：尊重显式的 0（`Number(x)||0.7` 会把 0 误判为 0.7），
+   但把空/未设置当作默认 0.7（注意 Number("") === 0）。 */
+function llmTemp(){
+  const raw = state.general.temperature;
+  if(raw === "" || raw === null || raw === undefined) return 0.7;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : 0.7;
+}
+/* 统一 HTTP 错误：带上 status，供 isRetryableLLM 判定 5xx 可重试。 */
+async function httpError(r){
+  let body = ""; try{ body = await r.text(); }catch{}
+  const e = new Error(`${r.status} ${r.statusText}${body?": "+body:""}`);
+  e.status = r.status;
+  return e;
+}
+/* 从流内错误对象里抽一句可读信息。 */
+function streamErrMessage(errObj){
+  if(!errObj) return "";
+  if(typeof errObj === "string") return errObj;
+  return errObj.message || errObj.error || errObj.reason || JSON.stringify(errObj);
+}
+/* 根据错误类型给出更有针对性的排查提示（尤其本地/私有部署）。 */
+function networkHint(err, cfg){
+  if(err && err.name === "TimeoutError") return t("msg.error.timeoutHint");
+  if(err && err.name === "TypeError"){
+    const base = (cfg && cfg.base || "").trim();
+    // HTTPS 页面请求 http:// 本地服务 → 浏览器按混合内容拦截
+    if(location.protocol === "https:" && /^http:\/\//i.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(base)){
+      return t("msg.error.mixedContent");
+    }
+    return t("msg.error.network");
+  }
+  return t("msg.error.suffix");
+}
 async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, provider}){
   const url = normalizeBase(cfg.base, provider) + "/chat/completions";
   const messages = buildOpenAIMessages(chat);
   const body = {
     model, messages, stream:true,
-    temperature: Number(state.general.temperature)||0.7,
+    temperature: llmTemp(),
   };
   if(state.general.maxTokens) body.max_tokens = Number(state.general.maxTokens);
   // 让支持分离思考的服务端把思考独立返回
@@ -3551,10 +3639,15 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
   const headers = {"Content-Type":"application/json"};
   if(cfg.key) headers["Authorization"] = "Bearer "+cfg.key;
   const r = await fetch(url,{method:"POST", headers, body:JSON.stringify(body), signal});
-  if(!r.ok){ const e = new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); e.status = r.status; throw e; }
+  if(!r.ok) throw await httpError(r);
   const parser = makeThinkTagParser(onReasoning, onContent);
+  let streamErr = null, finish = "";
   await readSSE(r, (json)=>{
-    const delta = json.choices?.[0]?.delta || {};
+    // 有些本地/兼容服务端会在 HTTP 200 的流里直接回传错误对象
+    if(json.error){ streamErr = new Error(streamErrMessage(json.error)); return; }
+    const choice = json.choices?.[0] || {};
+    const delta = choice.delta || {};
+    if(choice.finish_reason) finish = choice.finish_reason;
     // 各家命名的"思考"字段全部捕获
     if(delta.reasoning_content) onReasoning(delta.reasoning_content);
     if(delta.reasoning && typeof delta.reasoning==="string") onReasoning(delta.reasoning);
@@ -3563,6 +3656,9 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
     if(delta.content) parser(delta.content);
   });
   parser.flush();
+  if(streamErr) throw streamErr;
+  if(finish === "length") onContent("\n\n> ⚠️ "+t("msg.truncated"));
+  else if(finish === "content_filter") onContent("\n\n> ⚠️ "+t("msg.blocked"));
 }
 function buildOpenAIMessages(chat){
   const out = [];
@@ -3602,8 +3698,12 @@ async function pickLocalProtocol(cfg){
   const base = cfg.base.replace(/\/+$/,"").replace(/\/v\d+$/,"");
   if(_localProtocolCache.has(base)) return _localProtocolCache.get(base);
   try{
-    const r = await fetch(base + "/api/tags", {method:"GET"});
-    const ok = r.ok;
+    // 探测加超时，避免主机卡住时阻塞整个发送
+    const ac = new AbortController();
+    const tm = setTimeout(()=>ac.abort(), 3000);
+    let ok = false;
+    try{ const r = await fetch(base + "/api/tags", {method:"GET", signal:ac.signal}); ok = r.ok; }
+    finally{ clearTimeout(tm); }
     _localProtocolCache.set(base, ok);
     return ok;
   }catch{
@@ -3638,18 +3738,31 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
   const body = {
     model, messages, stream:true,
     think: !!state.general.showThinking,
-    options:{ temperature: Number(state.general.temperature)||0.7 }
+    options:{ temperature: llmTemp() }
   };
   if(state.general.maxTokens) body.options.num_predict = Number(state.general.maxTokens);
   const headers = {"Content-Type":"application/json"};
   if(cfg.key) headers["Authorization"] = "Bearer "+cfg.key;
   const r = await fetch(url,{method:"POST", headers, body:JSON.stringify(body), signal});
-  if(!r.ok){ throw new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); }
+  if(!r.ok) throw await httpError(r);
   // Ollama 用 NDJSON 流式（每行一个 JSON）
   const parser = makeThinkTagParser(onReasoning, onContent);
   const reader = r.body.getReader();
   const dec = new TextDecoder();
-  let buf = "";
+  let buf = "", streamErr = null, doneReason = "";
+  const handleLine = (line)=>{
+    if(!line.trim()) return;
+    try{
+      const j = JSON.parse(line);
+      if(j.error){ streamErr = new Error(streamErrMessage(j.error)); return; }
+      if(j.done_reason) doneReason = j.done_reason;
+      const mm = j.message;
+      if(mm){
+        if(mm.thinking) onReasoning(mm.thinking);   // 原生 thinking 字段
+        if(mm.content) parser(mm.content);          // 兼容 <think> 标签
+      }
+    }catch{}
+  };
   while(true){
     const {value, done} = await reader.read();
     if(done) break;
@@ -3657,18 +3770,13 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
     let i;
     while((i = buf.indexOf("\n")) >= 0){
       const line = buf.slice(0, i).replace(/\r$/,""); buf = buf.slice(i+1);
-      if(!line.trim()) continue;
-      try{
-        const j = JSON.parse(line);
-        const mm = j.message;
-        if(mm){
-          if(mm.thinking) onReasoning(mm.thinking);   // 原生 thinking 字段
-          if(mm.content) parser(mm.content);          // 兼容 <think> 标签
-        }
-      }catch{}
+      handleLine(line);
     }
   }
+  if(buf.trim()) handleLine(buf.replace(/\r$/,"")); // flush 末段（无换行结尾）
   parser.flush();
+  if(streamErr) throw streamErr;
+  if(doneReason === "length") onContent("\n\n> ⚠️ "+t("msg.truncated"));
 }
 
 /* -------- Anthropic Claude -------- */
@@ -3695,7 +3803,7 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
   const body = {
     model, messages, stream:true,
     max_tokens: Number(state.general.maxTokens)||4096,
-    temperature: Number(state.general.temperature)||0.7,
+    temperature: llmTemp(),
   };
   const sysC = effectiveSystemPrompt(chat);
   if(sysC) body.system = sysC;
@@ -3706,13 +3814,19 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
     "anthropic-dangerous-direct-browser-access":"true"
   };
   const r = await fetch(url,{method:"POST",headers,body:JSON.stringify(body),signal});
-  if(!r.ok){ throw new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); }
+  if(!r.ok) throw await httpError(r);
+  let streamErr = null, stopReason = "";
   await readSSE(r,(json)=>{
+    // Anthropic 会在流里发 event: error（data 为 {type:"error",error:{...}}）
+    if(json.type==="error"){ streamErr = new Error(streamErrMessage(json.error)); return; }
+    if(json.type==="message_delta" && json.delta?.stop_reason) stopReason = json.delta.stop_reason;
     if(json.type==="content_block_delta"){
       if(json.delta?.type==="text_delta") onContent(json.delta.text);
       else if(json.delta?.type==="thinking_delta") onReasoning(json.delta.thinking||"");
     }
   });
+  if(streamErr) throw streamErr;
+  if(stopReason === "max_tokens") onContent("\n\n> ⚠️ "+t("msg.truncated"));
 }
 
 /* -------- Google Gemini -------- */
@@ -3738,7 +3852,7 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
     contents.push({role:"user", parts});
   }
   const genCfg = {
-    temperature: Number(state.general.temperature)||0.7,
+    temperature: llmTemp(),
     maxOutputTokens: Number(state.general.maxTokens)||undefined
   };
   // 关闭思考时：让 Gemini 2.5 直接不思考；开启时：要求返回思考摘要
@@ -3751,9 +3865,16 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
   const sysG = effectiveSystemPrompt(chat);
   if(sysG) body.systemInstruction = {parts:[{text:sysG}]};
   const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal});
-  if(!r.ok){ throw new Error(`${r.status} ${r.statusText}: ${await r.text().catch(()=>"")}`); }
+  if(!r.ok) throw await httpError(r);
+  let streamErr = null, finish = "";
   await readSSE(r,(json)=>{
-    const parts = json.candidates?.[0]?.content?.parts;
+    if(json.error){ streamErr = new Error(streamErrMessage(json.error)); return; }
+    // 提示词被安全策略拦截：没有 candidates，只有 promptFeedback.blockReason
+    const block = json.promptFeedback?.blockReason;
+    if(block){ streamErr = new Error(t("msg.blocked")+" ("+block+")"); return; }
+    const cand = json.candidates?.[0];
+    if(cand?.finishReason && cand.finishReason!=="STOP") finish = cand.finishReason;
+    const parts = cand?.content?.parts;
     if(!parts) return;
     for(const p of parts){
       if(!p.text) continue;
@@ -3761,6 +3882,9 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
       else onContent(p.text);
     }
   });
+  if(streamErr) throw streamErr;
+  if(finish === "MAX_TOKENS") onContent("\n\n> ⚠️ "+t("msg.truncated"));
+  else if(finish === "SAFETY" || finish === "RECITATION") onContent("\n\n> ⚠️ "+t("msg.blocked")+" ("+finish+")");
 }
 
 /* -------- SSE reader -------- */
@@ -3768,6 +3892,12 @@ async function readSSE(response, onEvent){
   const reader = response.body.getReader();
   const dec = new TextDecoder();
   let buf = "";
+  const handleLine = (line)=>{
+    if(!line.startsWith("data:")) return;
+    const data = line.slice(5).trim();
+    if(!data || data==="[DONE]") return;
+    try{ onEvent(JSON.parse(data)); }catch{}
+  };
   while(true){
     const {value, done} = await reader.read();
     if(done) break;
@@ -3775,12 +3905,11 @@ async function readSSE(response, onEvent){
     let i;
     while((i = buf.indexOf("\n")) >= 0){
       const line = buf.slice(0,i).replace(/\r$/,""); buf = buf.slice(i+1);
-      if(!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if(!data || data==="[DONE]") continue;
-      try{ onEvent(JSON.parse(data)); }catch{}
+      handleLine(line);
     }
   }
+  // flush 末段：部分服务端最后一行不带换行结尾
+  if(buf.trim()) handleLine(buf.replace(/\r$/,""));
 }
 
 function lastN(messages){
@@ -4597,12 +4726,12 @@ function init(){
     state.general.showThinking = !state.general.showThinking;
     saveState(); updateThinkingToggle();
     renderMessages(); // 让已存在的思考面板跟随显隐
-    // 短暂提示
+    // 短暂提示：清掉上一个未完成的定时器，恢复时用规范文案（避免竞态残留旧文本）
     const el = document.getElementById("thinkingToggle");
     const label = el.querySelector("span:last-child");
-    const orig = label.textContent;
+    if(el._thinkTimer) clearTimeout(el._thinkTimer);
     label.textContent = state.general.showThinking ? t("thinking.toggle.on") : t("thinking.toggle.off");
-    setTimeout(()=>{ label.textContent = orig; }, 1200);
+    el._thinkTimer = setTimeout(()=>{ label.textContent = t("thinking.label"); el._thinkTimer = null; }, 1200);
   };
 
   document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
