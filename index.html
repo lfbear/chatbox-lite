@@ -1379,7 +1379,48 @@ function loadState(){
     });
   }catch(e){ console.error(e); return structuredClone(DEFAULT_STATE); }
 }
-function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function isQuotaExceeded(e){
+  return e && (e.name==="QuotaExceededError" || e.name==="NS_ERROR_DOM_QUOTA_REACHED" || e.code===22 || e.code===1014);
+}
+function cloneStateForStorage(keepAttachmentMessages){
+  const s = structuredClone(state);
+  const keep = Math.max(0, Number(keepAttachmentMessages)||0);
+  for(const chat of (s.chats||[])){
+    const msgs = chat.messages||[];
+    const withAttachments = msgs.filter(m => (m.attachments||[]).length);
+    const keepSet = new Set(withAttachments.slice(-keep));
+    for(const m of msgs){
+      if((m.attachments||[]).length && !keepSet.has(m)) delete m.attachments;
+    }
+  }
+  return s;
+}
+function saveState(){
+  const configuredKeep = Math.max(0, Number(state.general?.attachmentKeepRecent ?? 1)||0);
+  const attempts = [...new Set([configuredKeep, 1, 0])];
+  let lastErr = null;
+  for(const keep of attempts){
+    try{
+      localStorage.setItem(LS_KEY, JSON.stringify(cloneStateForStorage(keep)));
+      return true;
+    }catch(e){
+      lastErr = e;
+      if(!isQuotaExceeded(e)) break;
+    }
+  }
+  console.warn("Chatbox Lite state was too large for localStorage; dropped persisted attachment payloads.", lastErr);
+  try{
+    const slim = cloneStateForStorage(0);
+    for(const chat of (slim.chats||[])){
+      for(const m of (chat.messages||[])) delete m.reasoning;
+    }
+    localStorage.setItem(LS_KEY, JSON.stringify(slim));
+    return true;
+  }catch(e){
+    console.error("Failed to save Chatbox Lite state.", e);
+    return false;
+  }
+}
 
 /* ------------------------- Marked setup ------------------------- */
 marked.setOptions({
@@ -3305,11 +3346,11 @@ function buildOpenAIMessages(chat){
     const parts = [];
     let txt = m.content||"";
     const attachments = allowAttach.has(m) ? (m.attachments||[]) : [];
-    const fileTexts = attachments.filter(a=>a.kind==="file");
+    const fileTexts = attachments.filter(a=>a.kind==="file" && a.text);
     if(fileTexts.length){
       txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n");
     }
-    const images = attachments.filter(a=>a.kind==="image");
+    const images = attachments.filter(a=>a.kind==="image" && a.dataUrl);
     if(images.length){
       parts.push({type:"text", text:txt});
       for(const img of images) parts.push({type:"image_url", image_url:{url:img.dataUrl, detail: img.detail || "auto"}});
@@ -3354,9 +3395,9 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
     if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
     let txt = m.content||"";
     const attachments = allowAttachO.has(m) ? (m.attachments||[]) : [];
-    const fileTexts = attachments.filter(a=>a.kind==="file");
+    const fileTexts = attachments.filter(a=>a.kind==="file" && a.text);
     if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
-    const images = attachments.filter(a=>a.kind==="image");
+    const images = attachments.filter(a=>a.kind==="image" && a.dataUrl);
     const msg = {role:"user", content:txt};
     if(images.length){
       // 仅保留 base64 部分，不带 "data:image/...;base64," 前缀
@@ -3411,10 +3452,10 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
     const blocks = [];
     let txt = m.content||"";
     const attachmentsC = allowAttachC.has(m) ? (m.attachments||[]) : [];
-    const fileTexts = attachmentsC.filter(a=>a.kind==="file");
+    const fileTexts = attachmentsC.filter(a=>a.kind==="file" && a.text);
     if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     if(txt) blocks.push({type:"text", text:txt});
-    for(const img of attachmentsC.filter(a=>a.kind==="image")){
+    for(const img of attachmentsC.filter(a=>a.kind==="image" && a.dataUrl)){
       const [meta, b64] = img.dataUrl.split(",");
       const media_type = (meta.match(/data:(.*?);/)||[])[1] || "image/png";
       blocks.push({type:"image", source:{type:"base64", media_type, data:b64}});
@@ -3455,10 +3496,10 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
     const parts = [];
     let txt = m.content||"";
     const attachmentsG = allowAttachG.has(m) ? (m.attachments||[]) : [];
-    const fileTexts = attachmentsG.filter(a=>a.kind==="file");
+    const fileTexts = attachmentsG.filter(a=>a.kind==="file" && a.text);
     if(fileTexts.length){ txt += "\n\n" + fileTexts.map(f=>`${t("attach.label", f.name)}\n${f.text}`).join("\n\n"); }
     if(txt) parts.push({text:txt});
-    for(const img of attachmentsG.filter(a=>a.kind==="image")){
+    for(const img of attachmentsG.filter(a=>a.kind==="image" && a.dataUrl)){
       const [meta, b64] = img.dataUrl.split(",");
       const mime = (meta.match(/data:(.*?);/)||[])[1] || "image/png";
       // Gemini REST 要 camelCase
