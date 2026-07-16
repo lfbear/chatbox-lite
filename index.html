@@ -225,9 +225,11 @@ body.standalone .pwa-only{display:inline-flex}
 .msg.system .avatar{background:#a89060}
 .msg .body{flex:1;min-width:0}
 .msg .role{font-size:12px;color:var(--fg-2);margin-bottom:4px;display:flex;align-items:center;gap:8px}
-.msg .role .copy,.msg .role .act{opacity:0;transition:opacity .15s;font-size:11px;color:var(--fg-2);cursor:pointer;margin-left:8px;user-select:none}
-.msg:hover .copy,.msg:hover .act{opacity:1}
-.msg .copy:hover,.msg .act:hover{color:var(--accent)}
+.msg .msg-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:12px;margin-top:6px;opacity:0;transition:opacity .15s}
+.msg:hover .msg-actions{opacity:1}
+.msg .msg-actions:empty{display:none}
+.msg .msg-actions .copy,.msg .msg-actions .act{font-size:11px;color:var(--fg-2);cursor:pointer;user-select:none;line-height:1}
+.msg .msg-actions .copy:hover,.msg .msg-actions .act:hover{color:var(--accent)}
 .msg .content{line-height:1.75;font-size:15px;word-wrap:break-word;overflow-wrap:anywhere;color:var(--fg);min-width:0;max-width:100%}
 .msg .content p{margin:0.4em 0}
 .msg .content p:first-child{margin-top:0}
@@ -522,7 +524,7 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
   .msg .content{font-size:15px;line-height:1.7}
   .msg .content img{max-width:100%}
   .msg .attachments img{max-width:140px;max-height:140px}
-  .msg .copy,.msg .act{opacity:1}
+  .msg .msg-actions{opacity:1}
 
   /* Composer: 16px font on inputs avoids iOS Safari zoom */
   .composer{padding:6px;border-radius:12px}
@@ -2650,11 +2652,12 @@ function renderMessageEl(m, idx){
   div.innerHTML = `
     <div class="avatar">${escapeHtml(avatar)}</div>
     <div class="body">
-      <div class="role">${escapeHtml(roleLabel)} <span class="copy" data-copy>${escapeHtml(t("msg.copy"))}</span></div>
+      <div class="role">${escapeHtml(roleLabel)}</div>
       <div class="thinking-slot"></div>
       ${html}
       <div class="attachments"></div>
       ${m.meta?`<div class="meta">${escapeHtml(m.meta)}</div>`:""}
+      <div class="msg-actions"><span class="copy" data-copy>${escapeHtml(t("msg.copy"))}</span></div>
     </div>`;
   // render existing thinking (历史消息)
   if(m.role==="assistant" && (m.thought || m.reasoning)){
@@ -2700,29 +2703,29 @@ function renderMessageEl(m, idx){
   div.querySelector("[data-copy]").addEventListener("click",()=>{
     navigator.clipboard.writeText(m.i18nKey ? t(m.i18nKey) : (m.content||""));
   });
-  // 重发 / 编辑按钮
-  const roleBar = div.querySelector(".role");
+  // 操作入口统一放在对话块右下角
+  const actionBar = div.querySelector(".msg-actions");
   // 存入记事本（用户 & AI 消息都可）
   if((m.role==="user" || m.role==="assistant")){
     const save = document.createElement("span");
     save.className = "act"; save.textContent = t("notepad.msg.save");
     save.title = t("notepad.msg.save.title");
     save.addEventListener("click",(e)=>{ e.stopPropagation(); saveMessageToNotepad(m, save); });
-    roleBar.appendChild(save);
+    actionBar.appendChild(save);
   }
   if(m.role === "assistant" && idx != null){
     const btn = document.createElement("span");
     btn.className = "act"; btn.textContent = t("msg.regenerate");
     btn.title = t("msg.regenerate.title");
     btn.addEventListener("click",(e)=>{ e.stopPropagation(); regenerateAssistant(idx); });
-    roleBar.appendChild(btn);
+    actionBar.appendChild(btn);
   }
   if(m.role === "user" && idx != null){
     const btn = document.createElement("span");
     btn.className = "act"; btn.textContent = t("msg.edit");
     btn.title = t("msg.edit.title");
     btn.addEventListener("click",(e)=>{ e.stopPropagation(); editUserMessage(idx); });
-    roleBar.appendChild(btn);
+    actionBar.appendChild(btn);
   }
   return div;
 }
