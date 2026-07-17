@@ -378,6 +378,9 @@ html[data-theme="dark"] .scroll-bottom-btn{box-shadow:0 2px 12px rgba(0,0,0,.4)}
 .notepad-overlay.hide{display:none}
 @keyframes npSlideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .notepad-topbar{display:flex;align-items:center;gap:14px;padding:12px 20px;padding-top:max(12px,env(safe-area-inset-top));border-bottom:1px solid var(--border);flex-shrink:0}
+.notepad-back{display:inline-flex;align-items:center;gap:4px;padding:6px 12px 6px 8px;border-radius:8px;color:var(--fg-2);font-size:13px;cursor:pointer;flex-shrink:0}
+.notepad-back:hover{background:var(--bg-3);color:var(--fg)}
+.notepad-back svg{width:18px;height:18px;flex-shrink:0}
 .notepad-title{font-size:15px;font-weight:600;color:var(--fg)}
 .notepad-tabs{display:flex;gap:2px}
 .np-tab{padding:6px 16px;font-size:13px;color:var(--fg-2);border-radius:8px;cursor:pointer}
@@ -877,13 +880,16 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
 <!-- Notepad — full-screen overlay, fully independent of the chat -->
 <div class="notepad-overlay hide" id="notepadOverlay">
   <div class="notepad-topbar">
+    <button type="button" class="notepad-back" id="notepadBack" data-i18n-title="notepad.back.title" title="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      <span data-i18n="notepad.back">Back</span>
+    </button>
     <span class="notepad-title" data-i18n="notepad.title">📝 Notepad</span>
     <div class="notepad-tabs" role="tablist">
       <button type="button" class="np-tab active" data-nptab="notes" data-i18n="notepad.tab.notes">Knowledge</button>
       <button type="button" class="np-tab" data-nptab="todos" data-i18n="notepad.tab.todos">To-do</button>
     </div>
     <span class="spacer"></span>
-    <button class="icon-btn" id="notepadClose" data-i18n-title="notepad.close.title" title="Close">✕</button>
   </div>
   <div class="notepad-body">
     <!-- Knowledge panel -->
@@ -1024,7 +1030,8 @@ const I18N = {
     "notepad.title":"📝 Notepad",
     "notepad.tab.notes":"Knowledge",
     "notepad.tab.todos":"To-do",
-    "notepad.close.title":"Close (Esc)",
+    "notepad.back":"Back",
+    "notepad.back.title":"Back to chat (Esc)",
     "notepad.note.title.placeholder":"Title (optional)",
     "notepad.note.body.placeholder":"Paste or type anything worth remembering…",
     "notepad.note.add":"Add note",
@@ -1254,7 +1261,8 @@ const I18N = {
     "notepad.title":"📝 记事本",
     "notepad.tab.notes":"知识",
     "notepad.tab.todos":"待办",
-    "notepad.close.title":"关闭（Esc）",
+    "notepad.back":"返回",
+    "notepad.back.title":"返回对话（Esc）",
     "notepad.note.title.placeholder":"标题（可选）",
     "notepad.note.body.placeholder":"粘贴或输入想记下的任何内容…",
     "notepad.note.add":"添加笔记",
@@ -4663,7 +4671,7 @@ function init(){
   document.getElementById("settingsBtn").onclick = openSettings;
   // Notepad
   document.getElementById("notepadBtn").onclick = ()=>{ closeMobileSidebar(); openNotepad("notes"); };
-  document.getElementById("notepadClose").onclick = closeNotepad;
+  document.getElementById("notepadBack").onclick = closeNotepad;
   document.querySelectorAll(".np-tab").forEach(b=>b.addEventListener("click", ()=>setNotepadTab(b.dataset.nptab)));
   document.getElementById("npNoteAdd").onclick = ()=>{
     const ti = document.getElementById("npNoteTitle");
