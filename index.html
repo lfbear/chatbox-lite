@@ -404,13 +404,44 @@ html[data-theme="dark"] .scroll-bottom-btn{box-shadow:0 2px 12px rgba(0,0,0,.4)}
 .np-note .np-note-head{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
 .np-note .np-note-title{font-size:14px;font-weight:600;color:var(--fg);flex:1;word-break:break-word}
 .np-note .np-note-time{font-size:11px;color:var(--fg-2);flex-shrink:0}
-.np-note .np-note-body{font-size:13.5px;line-height:1.6;color:var(--fg);white-space:pre-wrap;word-break:break-word}
+.np-note .np-note-body{font-size:13.5px;line-height:1.6;color:var(--fg);word-break:break-word}
+/* markdown rendered inside a note body / preview */
+.np-md>*:first-child{margin-top:0}
+.np-md>*:last-child{margin-bottom:0}
+.np-md p{margin:.4em 0}
+.np-md h1,.np-md h2,.np-md h3,.np-md h4{margin:.7em 0 .35em;line-height:1.3;font-weight:600}
+.np-md h1{font-size:1.35em}.np-md h2{font-size:1.2em}.np-md h3{font-size:1.08em}.np-md h4{font-size:1em}
+.np-md ul,.np-md ol{margin:.4em 0;padding-left:1.4em}
+.np-md li{margin:.15em 0}
+.np-md li>input[type=checkbox]{margin-right:.4em}
+.np-md a{color:var(--accent)}
+.np-md code:not(pre code){background:var(--bg-3);padding:1px 5px;border-radius:4px;font-size:.9em;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.np-md pre{background:#0d1117;color:#e6edf3;padding:10px 12px;border-radius:8px;overflow-x:auto;margin:.5em 0;position:relative;font-size:12.5px;line-height:1.5}
+.np-md pre .copy-code{position:absolute;top:6px;right:6px;font-size:11px;padding:2px 7px;background:rgba(255,255,255,.1);color:#fff;border-radius:4px;opacity:0;transition:opacity .15s;cursor:pointer}
+.np-md pre:hover .copy-code{opacity:1}
+.np-md blockquote{border-left:3px solid var(--accent);padding-left:10px;color:var(--fg-2);margin:.5em 0}
+.np-md table{border-collapse:collapse;margin:.5em 0;max-width:100%}
+.np-md .md-table-wrap{overflow-x:auto;max-width:100%;margin:.5em 0;-webkit-overflow-scrolling:touch}
+.np-md .md-table-wrap table{margin:0}
+.np-md th,.np-md td{border:1px solid var(--border);padding:5px 9px;text-align:left}
+.np-md th{background:var(--bg-2)}
+.np-md hr{border:none;border-top:1px solid var(--border);margin:.7em 0}
+.np-md img{max-width:100%;border-radius:8px;margin:4px 0}
 .np-note .np-note-src{display:inline-block;margin-top:6px;font-size:11px;color:var(--fg-2);background:var(--bg-3);padding:1px 8px;border-radius:8px}
 .np-note-actions{display:flex;gap:10px;margin-top:8px}
 .np-note-actions span{font-size:11.5px;color:var(--fg-2);cursor:pointer;user-select:none}
 .np-note-actions span:hover{color:var(--fg)}
 .np-note-actions span.np-del:hover{color:var(--danger)}
 .np-note textarea.np-edit{width:100%;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13.5px;font-family:inherit;line-height:1.6;resize:vertical;min-height:60px}
+/* lightweight markdown toolbar shared by composer + note editor */
+.np-md-editor{display:flex;flex-direction:column;gap:0}
+.np-md-bar{display:flex;align-items:center;gap:2px;flex-wrap:wrap;padding:4px 4px 6px}
+.np-md-btn{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:26px;padding:0 6px;border-radius:6px;font-size:12.5px;color:var(--fg-2);background:transparent;line-height:1}
+.np-md-btn:hover{background:var(--bg-3);color:var(--fg)}
+.np-md-btn.active{background:var(--accent);color:#fff}
+.np-md-btn.md-b{font-weight:700}
+.np-md-btn.md-i{font-style:italic}
+.np-md-editor .np-md-preview{border:1px dashed var(--border);border-radius:8px;padding:8px 10px;min-height:60px;background:var(--bg)}
 /* todo item */
 .np-todo{display:flex;align-items:flex-start;gap:10px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
 .np-todo input[type=checkbox]{width:17px;height:17px;margin-top:2px;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
@@ -1055,6 +1086,13 @@ const I18N = {
     "notepad.saved":"✓ Saved",
     "notepad.msg.save":"Save to notepad",
     "notepad.msg.save.title":"Save this message as a note in the notepad",
+    "notepad.md.bold":"Bold (**text**)",
+    "notepad.md.italic":"Italic (*text*)",
+    "notepad.md.heading":"Heading (## )",
+    "notepad.md.list":"Bulleted list (- )",
+    "notepad.md.code":"Inline code (`code`)",
+    "notepad.md.link":"Link ([text](url))",
+    "notepad.md.preview":"Toggle Markdown preview",
     "cli.title":"Web CLI",
     "cli.input.placeholder":"help",
     "github.title":"GitHub · lfbear/chatbox-lite",
@@ -1286,6 +1324,13 @@ const I18N = {
     "notepad.saved":"✓ 已存",
     "notepad.msg.save":"存入记事本",
     "notepad.msg.save.title":"把这条消息存为记事本中的一条笔记",
+    "notepad.md.bold":"加粗（**文字**）",
+    "notepad.md.italic":"斜体（*文字*）",
+    "notepad.md.heading":"标题（## ）",
+    "notepad.md.list":"无序列表（- ）",
+    "notepad.md.code":"行内代码（`代码`）",
+    "notepad.md.link":"链接（[文字](url)）",
+    "notepad.md.preview":"切换 Markdown 预览",
     "cli.title":"Web CLI",
     "cli.input.placeholder":"help",
     "github.title":"GitHub · lfbear/chatbox-lite",
@@ -4243,7 +4288,9 @@ function renderNotes(){
     }
     const tm = document.createElement("div"); tm.className="np-note-time"; tm.textContent = npFmtTime(n.time); head.appendChild(tm);
     card.appendChild(head);
-    const bd = document.createElement("div"); bd.className="np-note-body"; bd.textContent = n.body; card.appendChild(bd);
+    const bd = document.createElement("div"); bd.className="np-note-body np-md";
+    bd.innerHTML = renderMarkdown(n.body||""); enhanceCodeBlocks(bd);
+    card.appendChild(bd);
     if(n.src){
       const s = document.createElement("span"); s.className="np-note-src"; s.textContent = n.src; card.appendChild(s);
     }
@@ -4262,14 +4309,87 @@ function renderNotes(){
 function startEditNote(card, n){
   const bd = card.querySelector(".np-note-body");
   const acts = card.querySelector(".np-note-actions");
-  const ta = document.createElement("textarea"); ta.className="np-edit"; ta.value = n.body;
-  bd.replaceWith(ta); ta.focus();
+  const ed = makeMdEditor(n.body);
+  bd.replaceWith(ed.wrap); ed.ta.focus();
   acts.innerHTML = "";
   const save = document.createElement("span"); save.textContent = t("notepad.action.save");
   const cancel = document.createElement("span"); cancel.textContent = t("notepad.action.cancel");
-  save.addEventListener("click", ()=>updateNote(n.id, n.title, ta.value));
+  save.addEventListener("click", ()=>updateNote(n.id, n.title, ed.ta.value));
   cancel.addEventListener("click", renderNotes);
   acts.appendChild(save); acts.appendChild(cancel);
+}
+
+/* --- lightweight markdown editing helpers --- */
+function mdSurround(ta, before, after){
+  const s=ta.selectionStart, e=ta.selectionEnd, v=ta.value;
+  const sel=v.slice(s,e);
+  ta.value=v.slice(0,s)+before+sel+after+v.slice(e);
+  const ns=s+before.length;
+  ta.selectionStart=ns; ta.selectionEnd=ns+sel.length;
+  ta.focus();
+}
+function mdPrefixLines(ta, prefix){
+  const s=ta.selectionStart, e=ta.selectionEnd, v=ta.value;
+  const ls=v.lastIndexOf("\n",s-1)+1;
+  let le=v.indexOf("\n",e); if(le<0) le=v.length;
+  const block=v.slice(ls,le).split("\n").map(l=>prefix+l).join("\n");
+  ta.value=v.slice(0,ls)+block+v.slice(le);
+  ta.selectionStart=ls; ta.selectionEnd=ls+block.length;
+  ta.focus();
+}
+// Build a toolbar bound to a textarea; optional live-preview host toggles view.
+function buildMdBar(ta, preview){
+  const bar=document.createElement("div"); bar.className="np-md-bar";
+  const mk=(label,cls,title,fn)=>{
+    const b=document.createElement("button"); b.type="button";
+    b.className="np-md-btn"+(cls?(" "+cls):""); b.textContent=label; b.title=title;
+    b.addEventListener("mousedown",e=>e.preventDefault()); // keep textarea selection
+    b.addEventListener("click",()=>{ if(bar._preview) return; fn(); });
+    return b;
+  };
+  bar.appendChild(mk("B","md-b",t("notepad.md.bold"),()=>mdSurround(ta,"**","**")));
+  bar.appendChild(mk("I","md-i",t("notepad.md.italic"),()=>mdSurround(ta,"*","*")));
+  bar.appendChild(mk("H","",t("notepad.md.heading"),()=>mdPrefixLines(ta,"## ")));
+  bar.appendChild(mk("•","",t("notepad.md.list"),()=>mdPrefixLines(ta,"- ")));
+  bar.appendChild(mk("</>","",t("notepad.md.code"),()=>mdSurround(ta,"`","`")));
+  bar.appendChild(mk("🔗","",t("notepad.md.link"),()=>mdSurround(ta,"[","](url)")));
+  if(preview){
+    const spacer=document.createElement("span"); spacer.style.flex="1"; bar.appendChild(spacer);
+    const pv=document.createElement("button"); pv.type="button"; pv.className="np-md-btn";
+    pv.textContent="👁"; pv.title=t("notepad.md.preview");
+    pv.addEventListener("click",()=>{
+      bar._preview=!bar._preview;
+      pv.classList.toggle("active", bar._preview);
+      if(bar._preview){
+        preview.innerHTML=renderMarkdown(ta.value||""); enhanceCodeBlocks(preview);
+        preview.classList.remove("hide"); ta.classList.add("hide");
+      }else{
+        preview.classList.add("hide"); ta.classList.remove("hide"); ta.focus();
+      }
+    });
+    bar.appendChild(pv);
+  }
+  return bar;
+}
+let npNoteComposerBar=null, npNoteComposerPreview=null;
+// Force the composer back to edit view (used after a note is added).
+function resetComposerPreview(){
+  const bar=npNoteComposerBar, preview=npNoteComposerPreview, bd=document.getElementById("npNoteBody");
+  if(!bar||!bar._preview) return;
+  bar._preview=false;
+  const pv=bar.querySelector(".np-md-btn.active"); if(pv) pv.classList.remove("active");
+  if(preview) preview.classList.add("hide");
+  if(bd) bd.classList.remove("hide");
+}
+// A textarea + toolbar + preview bundle. Returns { wrap, ta }.
+function makeMdEditor(value){
+  const wrap=document.createElement("div"); wrap.className="np-md-editor";
+  const ta=document.createElement("textarea"); ta.className="np-edit"; ta.value=value||"";
+  const preview=document.createElement("div"); preview.className="np-note-body np-md np-md-preview hide";
+  wrap.appendChild(buildMdBar(ta, preview));
+  wrap.appendChild(ta);
+  wrap.appendChild(preview);
+  return { wrap, ta };
 }
 
 /* --- To-dos --- */
@@ -4673,10 +4793,22 @@ function init(){
   document.getElementById("notepadBtn").onclick = ()=>{ closeMobileSidebar(); openNotepad("notes"); };
   document.getElementById("notepadBack").onclick = closeNotepad;
   document.querySelectorAll(".np-tab").forEach(b=>b.addEventListener("click", ()=>setNotepadTab(b.dataset.nptab)));
+  // Attach a lightweight markdown toolbar + preview to the note composer.
+  (function(){
+    const bd = document.getElementById("npNoteBody");
+    const preview = document.createElement("div");
+    preview.className = "np-note-body np-md np-md-preview hide";
+    const bar = buildMdBar(bd, preview);
+    bd.parentNode.insertBefore(bar, bd);
+    bd.parentNode.insertBefore(preview, bd.nextSibling);
+    npNoteComposerBar = bar; npNoteComposerPreview = preview;
+  })();
   document.getElementById("npNoteAdd").onclick = ()=>{
     const ti = document.getElementById("npNoteTitle");
     const bd = document.getElementById("npNoteBody");
-    if(addNote({ title:ti.value, body:bd.value })){ ti.value=""; bd.value=""; renderNotes(); ti.focus(); }
+    if(addNote({ title:ti.value, body:bd.value })){
+      ti.value=""; bd.value=""; resetComposerPreview(); renderNotes(); ti.focus();
+    }
   };
   const npTodoAddNow = ()=>{
     const inp = document.getElementById("npTodoInput");
