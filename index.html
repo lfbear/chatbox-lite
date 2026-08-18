@@ -829,6 +829,25 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
           <div class="form-row"><label data-i18n="general.maxTokens.label">Max output tokens</label><input id="cfg_max_tokens" type="number" min="1" step="1" inputmode="numeric" data-i18n-placeholder="general.maxTokens.placeholder" placeholder="Leave empty to use model default" /></div>
         </div>
         <div class="form-row"><label data-i18n="general.historyN.label">History messages kept (context length)</label><input id="cfg_history_n" type="number" min="2" step="1" value="40" inputmode="numeric" /></div>
+        <div class="form-row"><label data-i18n="general.ctxBudget.label">Context token budget (rough estimate)</label><input id="cfg_ctx_budget" type="number" min="0" step="256" inputmode="numeric" data-i18n-placeholder="general.ctxBudget.placeholder" placeholder="Leave empty to disable" /><span class="hint" data-i18n="general.ctxBudget.hint">Second-stage trimming on top of the message count above: the oldest messages are dropped until the estimated prompt fits. Estimation is rough (CJK about 1 char/token, other text about 4 chars/token). Set it somewhat below your model real context window.</span></div>
+        <div class="form-row"><label data-i18n="general.thinkMode.label">Thinking mode (what is requested)</label>
+          <select id="cfg_think_mode">
+            <option value="auto" data-i18n="general.thinkMode.auto">Auto - leave it to the server default</option>
+            <option value="on" data-i18n="general.thinkMode.on">Force on - always request thinking</option>
+            <option value="off" data-i18n="general.thinkMode.off">Force off - actually skip thinking</option>
+          </select>
+          <span class="hint" data-i18n-html="general.thinkMode.hint">Separate from the show-thinking switch below, which only controls display. For hybrid models such as Qwen3 this sends <code>chat_template_kwargs.enable_thinking</code> (vLLM / SGLang / llama.cpp --jinja) plus Ollama <code>think</code> - without it, hiding the thinking still pays for every thinking token.</span>
+        </div>
+        <div class="form-row"><label data-i18n="general.numCtx.label">Local context window (Ollama num_ctx)</label><input id="cfg_num_ctx" type="number" min="0" step="1024" inputmode="numeric" data-i18n-placeholder="general.numCtx.placeholder" placeholder="Leave empty to use the server default (often 4096)" /><span class="hint" data-i18n="general.numCtx.hint">Ollama silently drops whatever does not fit its context window, and the first thing to go is the system prompt / scenario memory - with no error at all. Set this to the window your model actually supports (8192 / 32768 ...).</span></div>
+        <div class="row-2">
+          <div class="form-row"><label data-i18n="general.topP.label">top_p</label><input id="cfg_top_p" type="number" min="0" max="1" step="0.01" inputmode="decimal" data-i18n-placeholder="general.sampling.placeholder" placeholder="Leave empty to omit" /></div>
+          <div class="form-row"><label data-i18n="general.topK.label">top_k</label><input id="cfg_top_k" type="number" min="0" step="1" inputmode="numeric" data-i18n-placeholder="general.sampling.placeholder" placeholder="Leave empty to omit" /></div>
+        </div>
+        <div class="row-2">
+          <div class="form-row"><label data-i18n="general.minP.label">min_p</label><input id="cfg_min_p" type="number" min="0" max="1" step="0.01" inputmode="decimal" data-i18n-placeholder="general.sampling.placeholder" placeholder="Leave empty to omit" /></div>
+          <div class="form-row"><label data-i18n="general.presencePenalty.label">presence_penalty</label><input id="cfg_presence_penalty" type="number" min="-2" max="2" step="0.1" inputmode="decimal" data-i18n-placeholder="general.sampling.placeholder" placeholder="Leave empty to omit" /></div>
+        </div>
+        <div class="form-row"><span class="hint" data-i18n="general.sampling.hint">Empty fields are not sent at all. These apply to OpenAI-compatible and local models only. Qwen3 recommends thinking mode: temp 0.6 / top_p 0.95 / top_k 20 / min_p 0; non-thinking: temp 0.7 / top_p 0.8 / top_k 20. presence_penalty 0.5-1.5 is the usual cure when a small local model starts looping.</span></div>
         <div class="form-row">
           <label data-i18n="general.imageDetail.label">Image upload quality (input tokens)</label>
           <select id="cfg_image_detail">
@@ -998,6 +1017,12 @@ const DEFAULT_STATE = {
     systemPrompt:"You are a helpful assistant. Answer in the user's language.",
     temperature:0.7,
     maxTokens:"",
+    // 采样参数：留空 = 该字段完全不发送（本地小模型缺 top_k/min_p/presence_penalty 极易复读）
+    topP:"", topK:"", minP:"", presencePenalty:"",
+    thinkMode:"auto",       // auto | on | off —— 是否"请求"模型思考（与 showThinking 的"是否展示"分离）
+    numCtx:"",              // Ollama num_ctx，留空 = 用服务端默认（常见 4096）
+    keepAlive:"30m",        // Ollama keep_alive，避免每轮冷加载撞上连接看门狗
+    contextTokenBudget:"",  // token 预算二级裁剪，留空 = 不启用
     historyN:40,
     showThinking:true,
     userName:"",
@@ -1163,6 +1188,23 @@ const I18N = {
     "general.maxTokens.label":"Max output tokens",
     "general.maxTokens.placeholder":"Leave empty to use model default",
     "general.historyN.label":"History messages kept (context length)",
+    "general.ctxBudget.label":"Context token budget (rough estimate)",
+    "general.ctxBudget.placeholder":"Leave empty to disable",
+    "general.ctxBudget.hint":"Second-stage trimming on top of the message count above: the oldest messages are dropped until the estimated prompt fits. Estimation is rough (CJK about 1 char/token, other text about 4 chars/token). Set it somewhat below your model real context window.",
+    "general.thinkMode.label":"Thinking mode (what is requested)",
+    "general.thinkMode.auto":"Auto - leave it to the server default",
+    "general.thinkMode.on":"Force on - always request thinking",
+    "general.thinkMode.off":"Force off - actually skip thinking",
+    "general.thinkMode.hint":"Separate from the show-thinking switch below, which only controls display. For hybrid models such as Qwen3 this sends <code>chat_template_kwargs.enable_thinking</code> (vLLM / SGLang / llama.cpp --jinja) plus Ollama <code>think</code> - without it, hiding the thinking still pays for every thinking token.",
+    "general.numCtx.label":"Local context window (Ollama num_ctx)",
+    "general.numCtx.placeholder":"Leave empty to use the server default (often 4096)",
+    "general.numCtx.hint":"Ollama silently drops whatever does not fit its context window, and the first thing to go is the system prompt / scenario memory - with no error at all. Set this to the window your model actually supports (8192 / 32768 ...).",
+    "general.topP.label":"top_p",
+    "general.topK.label":"top_k",
+    "general.minP.label":"min_p",
+    "general.presencePenalty.label":"presence_penalty",
+    "general.sampling.placeholder":"Leave empty to omit",
+    "general.sampling.hint":"Empty fields are not sent at all. These apply to OpenAI-compatible and local models only. Qwen3 recommends thinking mode: temp 0.6 / top_p 0.95 / top_k 20 / min_p 0; non-thinking: temp 0.7 / top_p 0.8 / top_k 20. presence_penalty 0.5-1.5 is the usual cure when a small local model starts looping.",
     "general.autoCompress.label":"Auto-compress scenario memory",
     "general.autoCompress.hint":"For 🎬 scenario chats: when the live context exceeds the size below, older messages are automatically summarized into long-term memory.",
     "general.compressChars.label":"Auto-compress threshold (characters of live context)",
@@ -1215,6 +1257,8 @@ const I18N = {
     "confirm.emptyPicker":"No models selected. The current model list will be cleared. Continue?",
     "msg.aborted":"_[Aborted]_",
     "msg.empty":"_[Empty response — the model returned no content after several attempts. Try resending, or check the model/server.]_",
+    "msg.thinkingOnly":"_[The model produced thinking only, no answer — it most likely ran out of output tokens mid-thought. Raise max output tokens, or set thinking mode to force off.]_",
+    "msg.error.contextMaybe":"This request may exceed the model context window: lower the history message count, set a context token budget, drop large attachments, or raise the local server context size (Ollama num_ctx / llama.cpp -c).",
     "msg.error.label":"Error",
     "msg.error.suffix":"Please check the API Key, Base URL, model name, network, and CORS settings.",
     "msg.error.network":"Couldn't reach the server. Check that it's running and the Base URL/port are correct; for local models make sure CORS is open (Ollama: `OLLAMA_ORIGINS=*`).",
@@ -1401,6 +1445,23 @@ const I18N = {
     "general.maxTokens.label":"最大输出 tokens",
     "general.maxTokens.placeholder":"留空使用模型默认",
     "general.historyN.label":"历史消息保留条数（控制上下文长度）",
+    "general.ctxBudget.label":"上下文 token 预算（估算）",
+    "general.ctxBudget.placeholder":"留空表示不启用",
+    "general.ctxBudget.hint":"在上面的条数窗口之上再做一层裁剪：从最旧的消息开始丢，直到估算长度装得下。估算是粗略的（中日韩文字约 1 字/token，其余约 4 字符/token），建议填得比模型真实上下文窗口略小。",
+    "general.thinkMode.label":"思考模式（决定请求什么）",
+    "general.thinkMode.auto":"自动 - 交给服务端默认行为",
+    "general.thinkMode.on":"强制开启 - 总是请求思考",
+    "general.thinkMode.off":"强制关闭 - 真正不思考",
+    "general.thinkMode.hint":"与下面的“显示思考”开关分开：那个只管展示。对 Qwen3 这类混合思考模型，这里会下发 <code>chat_template_kwargs.enable_thinking</code>（vLLM / SGLang / llama.cpp --jinja）以及 Ollama 的 <code>think</code> —— 不发这个字段的话，“隐藏思考”只是把 CoT 丢掉，token 和时延照付。",
+    "general.numCtx.label":"本地上下文窗口（Ollama num_ctx）",
+    "general.numCtx.placeholder":"留空使用服务端默认（常见 4096）",
+    "general.numCtx.hint":"Ollama 会把超出上下文窗口的内容静默丢弃，而最先被丢掉的恰好是排在最前面的 system prompt / 场景记忆，并且不会有任何报错。请按模型实际支持的窗口填写（8192 / 32768 …）。",
+    "general.topP.label":"top_p",
+    "general.topK.label":"top_k",
+    "general.minP.label":"min_p",
+    "general.presencePenalty.label":"presence_penalty",
+    "general.sampling.placeholder":"留空则不发送",
+    "general.sampling.hint":"留空的字段完全不会出现在请求里。仅对 OpenAI 兼容 / 本地模型生效。Qwen3 官方推荐：思考模式 temp 0.6 / top_p 0.95 / top_k 20 / min_p 0；非思考模式 temp 0.7 / top_p 0.8 / top_k 20。本地小模型开始复读时，presence_penalty 填 0.5~1.5 通常就能压住。",
     "general.autoCompress.label":"自动压缩场景记忆",
     "general.autoCompress.hint":"针对 🎬 场景对话：当实时上下文超过下方设定的大小时，自动把较早的消息总结进长期记忆。",
     "general.compressChars.label":"自动压缩阈值（实时上下文字符数）",
@@ -1453,6 +1514,8 @@ const I18N = {
     "confirm.emptyPicker":"没有勾选任何模型，将清空当前模型列表，确定继续？",
     "msg.aborted":"_[已中止]_",
     "msg.empty":"_[空响应 — 多次尝试后模型仍未返回内容。可重新发送，或检查模型/服务端。]_",
+    "msg.thinkingOnly":"_[模型只输出了思考、没有正文 — 多半是在思考过程中用完了输出 token。可调大最大输出 tokens，或把思考模式设为强制关闭。]_",
+    "msg.error.contextMaybe":"本次请求可能超出模型上下文窗口：可减少历史消息条数、设置上下文 token 预算、去掉大附件，或调大本地服务端的上下文（Ollama num_ctx / llama.cpp -c）。",
     "msg.error.label":"错误",
     "msg.error.suffix":"请检查 API Key、Base URL、模型名、网络以及 CORS 设置。",
     "msg.error.network":"无法连接到服务。请确认服务已启动、Base URL/端口正确；本地模型需开启 CORS（Ollama：`OLLAMA_ORIGINS=*`）。",
@@ -3070,13 +3133,18 @@ async function sendWelcomeReply(chat, aiMsg){
 
 // 解析内联 <think>/<thinking> 标签的流式状态机
 // 额外能力：剥离聊天模板泄漏前缀（如 "assistant\n\n<think>..."、"<|im_start|>assistant\n..."）
-function makeThinkTagParser(onReasoning, onContent){
+function makeThinkTagParser(onReasoning, onContent, onOrphanClose){
   let mode = null;          // null | 'think' | 'content'
   let closeTag = ""; let closeLen = 0;
   let pending = "";
   let stripped = false;     // 是否已完成前缀剥离
+  let sawOpen = false;      // 是否见过 <think> 开标签
+  let orphanDone = false;   // 是否已处理过"孤儿闭合标签"
   const OPEN = /<(think|thinking)>/i;
+  const CLOSE_ANY = /<\/(think|thinking)>/i;
   const TAIL_PREFIX = /<(t(h(i(n(k(i(n(g)?)?)?)?)?)?)?)?$/i;
+  // 末尾可能是 </think> 的一半（"<"、"</"、"</thin" …），先扣住别当正文吐出
+  const TAIL_CLOSE = /<\/?(t(h(i(n(k(i(n(g)?)?)?)?)?)?)?)?$/i;
   // 常见角色 token 泄漏
   const LEAKS = [
     'assistant\n', 'Assistant\n', 'model\n', 'Model\n',
@@ -3107,6 +3175,7 @@ function makeThinkTagParser(onReasoning, onContent){
         if(m){
           const before = pending.slice(0, m.index);
           if(before.trim().length > 0) onContent(before); // 跳过纯空白前导
+          sawOpen = true;
           mode = 'think';
           closeTag = `</${m[1].toLowerCase()}>`; closeLen = closeTag.length;
           pending = pending.slice(m.index + m[0].length).replace(/^\s+/, '');
@@ -3127,7 +3196,39 @@ function makeThinkTagParser(onReasoning, onContent){
         if(pending.length > closeLen){ onReasoning(pending.slice(0,-closeLen)); pending = pending.slice(-closeLen); }
         return;
       }
-      if(mode === 'content'){ onContent(pending); pending = ""; return; }
+      if(mode === 'content'){
+        const o = pending.match(OPEN);
+        // 孤儿闭合标签：有些 chat template 会在 prompt 末尾预填 <think>（DeepSeek-R1 系
+        // 最典型），模型输出里因此只剩一个 </think>。这时前面流出去的其实全是思考 ——
+        // 只在从未见过开标签时才这么判，见过一次就说明该模型是成对输出的。
+        const c = (!sawOpen && !orphanDone) ? pending.match(CLOSE_ANY) : null;
+        if(o && (!c || o.index < c.index)){
+          // 正文之后才出现 <think>（部分模型会先寒暄再思考）：正常进入思考段
+          if(o.index > 0) onContent(pending.slice(0, o.index));
+          sawOpen = true;
+          mode = 'think';
+          closeTag = `</${o[1].toLowerCase()}>`; closeLen = closeTag.length;
+          pending = pending.slice(o.index + o[0].length).replace(/^\s+/, '');
+          continue;
+        }
+        if(c){
+          orphanDone = true;
+          if(onOrphanClose) onOrphanClose();   // 已当正文流出的部分改判为思考
+          const before = pending.slice(0, c.index);
+          if(before) onReasoning(before);
+          pending = pending.slice(c.index + c[0].length).replace(/^\s+/, '');
+          continue;
+        }
+        // 末尾可能是标签的一半，扣住等下一个 chunk（flush 时会补吐出来）
+        const tail = pending.match(TAIL_CLOSE);
+        if(tail && tail[0]){
+          if(tail.index > 0) onContent(pending.slice(0, tail.index));
+          pending = pending.slice(tail.index);
+          return;
+        }
+        onContent(pending); pending = "";
+        return;
+      }
     }
   }
   feed.flush = ()=>{
@@ -3158,7 +3259,7 @@ async function streamResponse(chat, aiMsg, modelId){
   const cfg = state.config[provider];
   const chatId = chat.id;
   // 本次请求是否携带了图片（用于在 400 时提示"该模型/服务可能不支持视觉"）
-  const _allowImg = computeAttachmentAllowSet(lastN(chat.messages));
+  const _allowImg = computeAttachmentAllowSet(lastN(chat.messages, chat));
   const sentImages = [..._allowImg].some(m => (m.attachments||[]).some(a=>a.kind==="image"));
   // 仅当此会话正处于前台时才允许操作 DOM —— 这是会话隔离的关键。
   const onActive = ()=> state.activeChatId === chatId;
@@ -3168,12 +3269,13 @@ async function streamResponse(chat, aiMsg, modelId){
   let reasoningStart = 0;
   let inReasoning = false;
   let firstChunkSeen = false;
+  let firstChunkAt = 0;
   let lastActivity = Date.now();   // 供超时看门狗判定停顿
 
   const markFirstChunk = ()=>{
     lastActivity = Date.now();
     if(firstChunkSeen) return;
-    firstChunkSeen = true;
+    firstChunkSeen = true; firstChunkAt = Date.now();
     streamPhase(chatId, t("status.generating"));
   };
 
@@ -3235,13 +3337,29 @@ async function streamResponse(chat, aiMsg, modelId){
     markFirstChunk(); lastActivity = Date.now();
     // 不管开关都标记"在思考"，让指示器始终可见，避免假死
     if(!inReasoning){ inReasoning = true; reasoningStart = Date.now(); aiMsg.thought = true; }
-    if(state.general.showThinking) aiMsg.reasoning += delta; // 仅当开启时累积内容
+    // 始终累积。隐藏思考时若不累积，一条"只有 CoT、没有正文"的响应会被判成空响应
+    // 并整轮重试（本地小模型在 <think> 里撞上 max_tokens 时很常见）。
+    // 是否展示由 refresh() 按 showThinking 决定，这里只负责不丢数据。
+    aiMsg.reasoning += delta;
     refresh();
   };
   const onContent = (delta)=>{
     markFirstChunk(); lastActivity = Date.now();
     if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; inReasoning = false; }
     aiMsg.content += delta;
+    refresh();
+  };
+  // 解析器发现"孤儿 </think>"时回调：把已经当正文流出去的内容改判为思考。
+  const onOrphanThink = ()=>{
+    if(!aiMsg.content) return;
+    aiMsg.thought = true;
+    if(!inReasoning){ inReasoning = true; reasoningStart = firstChunkAt || Date.now(); }
+    aiMsg.reasoning = aiMsg.content + aiMsg.reasoning;
+    aiMsg.content = "";
+    if(onActive()){
+      const el = document.querySelector(".messages .msg-wrap .msg:last-child .content");
+      if(el) el.innerHTML = `<span class="typing-dots" aria-label="${escapeHtml(t("waiting.aria"))}"><span></span><span></span><span></span></span>`;
+    }
     refresh();
   };
 
@@ -3251,10 +3369,10 @@ async function streamResponse(chat, aiMsg, modelId){
   if(provider==="ollama"){
     const useNative = await pickLocalProtocol(cfg);
     runOnce = useNative
-      ? (signal)=>callOllamaNative({cfg, model, chat, signal, onContent, onReasoning})
-      : (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, provider:"ollama"});
+      ? (signal)=>callOllamaNative({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink})
+      : (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink, provider:"ollama"});
   }else if(provider==="openai"){
-    runOnce = (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, provider});
+    runOnce = (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink, provider});
   }else if(provider==="claude"){
     runOnce = (signal)=>callClaude({cfg, model, chat, signal, onContent, onReasoning});
   }else if(provider==="gemini"){
@@ -3277,7 +3395,8 @@ async function streamResponse(chat, aiMsg, modelId){
   for(let attempt=1; attempt<=maxAttempts; attempt++){
     // Reset accumulation + indicators for this attempt.
     aiMsg.content = ""; aiMsg.reasoning = ""; aiMsg.thought = false; aiMsg.reasoningMs = 0;
-    firstChunkSeen = false; inReasoning = false;
+    aiMsg.error = false;
+    firstChunkSeen = false; firstChunkAt = 0; inReasoning = false;
     if(attempt>1){
       resetAssistantBubble();
       streamPhase(chatId, t("status.retrying", attempt, maxAttempts));
@@ -3304,7 +3423,7 @@ async function streamResponse(chat, aiMsg, modelId){
     finally{ clearInterval(watch); ctrl.signal.removeEventListener("abort", onUserAbort); }
 
     // 用户主动停止：中止且非超时触发
-    if(err && err.name==="AbortError" && !timedOut){ aiMsg.content += "\n\n" + t("msg.aborted"); break; }
+    if(err && err.name==="AbortError" && !timedOut){ aiMsg.content += "\n\n" + t("msg.aborted"); aiMsg.error = true; break; }
     // 看门狗触发的中止：转成可重试的超时错误
     if(timedOut && err && err.name==="AbortError"){
       err = new Error(firstChunkSeen ? t("msg.timeout.stall") : t("msg.timeout.connect"));
@@ -3319,13 +3438,17 @@ async function streamResponse(chat, aiMsg, modelId){
     // Out of attempts, or a non-retryable error: surface the outcome.
     if(err){
       let hint = networkHint(err, cfg);
+      if(isContextOverflow(err)) hint = t("msg.error.contextMaybe") + "\n\n" + hint;
       if(err.status === 400 && sentImages) hint = t("msg.error.visionMaybe") + "\n\n" + hint;
       aiMsg.content += `\n\n> ❌ **${t("msg.error.label")}**: ${err.message}\n\n${hint}`;
+      aiMsg.error = true;
     }
-    else if(!gotSomething){ aiMsg.content = t("msg.empty"); }
+    else if(!gotSomething){ aiMsg.content = t("msg.empty"); aiMsg.error = true; }
     break;
   }
   if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; }
+  // 只有思考、没有正文：明确说明，而不是留个空气泡或误报"空响应"。
+  if(!aiMsg.content.trim() && aiMsg.reasoning.trim()) aiMsg.content = t("msg.thinkingOnly");
   // 最终渲染：仅当此会话在前台时更新 DOM；否则数据已存入 aiMsg，
   // 切回该会话时由 renderMessages 重建。
   if(onActive()){
@@ -3573,8 +3696,8 @@ async function cliStreamResponse(chat, aiMsg, modelId, outLine, thinkLine){
   const onReasoning = (delta)=>{
     markFirstChunk();
     if(!inReasoning){ inReasoning = true; reasoningStart = Date.now(); aiMsg.thought = true; }
+    aiMsg.reasoning += delta;   // 始终累积，否则"只有思考"的响应会被误判成空响应
     if(state.general.showThinking){
-      aiMsg.reasoning += delta;
       if(!thinkLine) thinkLine = cliPrint("", "thinking");
       if(thinkLine){
         thinkLine.textContent = "thinking> " + aiMsg.reasoning;
@@ -3589,14 +3712,27 @@ async function cliStreamResponse(chat, aiMsg, modelId, outLine, thinkLine){
     outLine.textContent += delta;
     cliScreen().scrollTop = cliScreen().scrollHeight;
   };
+  // 孤儿 </think>：把已经当正文打出去的内容改判为思考
+  const onOrphanThink = ()=>{
+    if(!aiMsg.content) return;
+    aiMsg.thought = true;
+    if(!inReasoning){ inReasoning = true; reasoningStart = reasoningStart || Date.now(); }
+    aiMsg.reasoning = aiMsg.content + aiMsg.reasoning;
+    aiMsg.content = "";
+    outLine.textContent = "";
+    if(state.general.showThinking){
+      if(!thinkLine) thinkLine = cliPrint("", "thinking");
+      if(thinkLine) thinkLine.textContent = "thinking> " + aiMsg.reasoning;
+    }
+  };
   let runOnce;
   try{
     if(provider==="ollama"){
       const useNative = await pickLocalProtocol(cfg);
       runOnce = useNative
-        ? ()=>callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning})
-        : ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider:"ollama"});
-    }else if(provider==="openai") runOnce = ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, provider});
+        ? ()=>callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, onOrphanThink})
+        : ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, onOrphanThink, provider:"ollama"});
+    }else if(provider==="openai") runOnce = ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, onOrphanThink, provider});
     else if(provider==="claude") runOnce = ()=>callClaude({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
     else if(provider==="gemini") runOnce = ()=>callGemini({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning});
     else throw new Error("Unknown provider: " + provider);
@@ -3604,6 +3740,7 @@ async function cliStreamResponse(chat, aiMsg, modelId, outLine, thinkLine){
     const maxAttempts = Math.max(1, (Number(state.general.emptyRetries) || 2) + 1);
     for(let attempt=1; attempt<=maxAttempts; attempt++){
       aiMsg.content = ""; aiMsg.reasoning = ""; aiMsg.thought = false; aiMsg.reasoningMs = 0;
+      aiMsg.error = false;
       outLine.textContent = "";
       if(thinkLine) thinkLine.textContent = "";
       firstChunkSeen = false; inReasoning = false;
@@ -3618,14 +3755,21 @@ async function cliStreamResponse(chat, aiMsg, modelId, outLine, thinkLine){
       if(!err && gotSomething) break;
       if(attempt < maxAttempts && isRetryableLLM(err)) continue;
       if(err){
-        const errText = `\n\n${t("msg.error.label")}: ${err.message}`;
+        const extra = isContextOverflow(err) ? "\n" + t("msg.error.contextMaybe") : "";
+        const errText = `\n\n${t("msg.error.label")}: ${err.message}${extra}`;
         aiMsg.content += errText;
         outLine.textContent += errText;
+        aiMsg.error = true;
       }
-      else if(!gotSomething){ aiMsg.content = t("msg.empty"); outLine.textContent = aiMsg.content; }
+      else if(!gotSomething){ aiMsg.content = t("msg.empty"); outLine.textContent = aiMsg.content; aiMsg.error = true; }
       break;
     }
     if(inReasoning) aiMsg.reasoningMs = Date.now() - reasoningStart;
+    // 只有思考、没有正文
+    if(!aiMsg.content.trim() && aiMsg.reasoning.trim()){
+      aiMsg.content = t("msg.thinkingOnly");
+      outLine.textContent = aiMsg.content;
+    }
   }finally{
     streamEnd(chat.id);
     saveState(); renderMessages(); renderChatList(); updateTopBar();
@@ -3637,6 +3781,9 @@ function normalizeBase(base, provider){
   let b = (base||"").replace(/\/+$/,"");
   // Ollama 的 OpenAI 兼容端点位于 /v1，自动补全，避免 404
   if(provider==="ollama" && !/\/v\d+$/.test(b)) b += "/v1";
+  // 本机/内网的 OpenAI 兼容服务同样挂在 /v1 下（LM Studio / llama.cpp / vLLM），
+  // 用户常只填到端口就结束 → 直接 404。远端地址不猜，交给 404 兜底重试。
+  if(provider==="openai" && !/\/v\d+(\/|$)/.test(b) && isLocalHost(b)) b += "/v1";
   return b;
 }
 /* 温度：尊重显式的 0（`Number(x)||0.7` 会把 0 误判为 0.7），
@@ -3646,6 +3793,66 @@ function llmTemp(){
   if(raw === "" || raw === null || raw === undefined) return 0.7;
   const v = Number(raw);
   return Number.isFinite(v) ? v : 0.7;
+}
+/* 思考模式：auto=不干预服务端默认 / on=强制思考 / off=强制关闭思考。
+   与 showThinking（是否"展示"）分离 —— 旧版把两件事混在一个开关里，
+   结果"关掉思考"只是把 CoT 丢弃，模型照样思考、token 照样付。 */
+function thinkMode(){
+  const v = state.general.thinkMode;
+  return (v === "on" || v === "off") ? v : "auto";
+}
+/* 可选数值参数：留空/非法 → null（该字段不发送）；显式填 0 必须保留。 */
+function optNum(raw){
+  if(raw === "" || raw === null || raw === undefined) return null;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : null;
+}
+/* 采样参数。只发用户填过的；字段名在 OpenAI 兼容端点和 Ollama options 里一致。
+   本地小模型（Qwen3 8B 等）缺 top_k / min_p / presence_penalty 时极易复读。 */
+function samplingParams(){
+  const out = {};
+  const map = { top_p:"topP", top_k:"topK", min_p:"minP", presence_penalty:"presencePenalty" };
+  for(const k in map){
+    const v = optNum(state.general[map[k]]);
+    if(v !== null) out[k] = v;
+  }
+  return out;
+}
+function hostOf(u){ try{ return new URL(u).hostname; }catch{ return ""; } }
+/* 本机 / 内网地址：这类 OpenAI 兼容服务（LM Studio 1234、llama.cpp 8080、vLLM 8000）
+   一律挂在 /v1 下，而用户常常只填到端口就结束。 */
+function isLocalHost(u){
+  const h = hostOf(u);
+  if(!h) return false;
+  return /^(localhost|0\.0\.0\.0)$/i.test(h) || h === "::1" || h === "[::1]"
+      || /^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)
+      || /^172\.(1[6-9]|2\d|3[01])\./.test(h) || /\.local$/i.test(h);
+}
+/* 上下文超长：各家措辞不同，模糊匹配后给一条可操作的提示。 */
+function isContextOverflow(err){
+  if(!err || (err.status !== 400 && err.status !== 413)) return false;
+  return /context[_ ]?(length|window|size)|max(imum)?[_ ]?context|n_ctx|too many tokens|too long|reduce the length|exceeds?\b.*(context|token)/i.test(err.message||"");
+}
+/* 非标字段被端点拒绝时的报文特征。 */
+const UNKNOWN_ARG_RE = /unrecogni[sz]ed|unknown (field|argument|parameter)|unsupported (field|argument|parameter)|unexpected keyword|extra_forbidden|extra fields|not permitted|invalid[_ ]?(request[_ ]?)?(argument|parameter|field)/i;
+/* 发 chat/completions，并对两类常见的"端点差异"各自愈一次：
+   1) 400 + 未知参数 → 剥掉全部非标字段重发（Azure / 严格网关）；
+   2) 404 且 URL 里没有 /vN 段 → 补 /v1 重发（本地服务最常见的填法错误）。 */
+async function postChatCompletions(url, headers, core, optional, signal){
+  const send = (u, b)=>fetch(u,{method:"POST", headers, body:JSON.stringify(b), signal});
+  let r = await send(url, {...core, ...optional});
+  if(r.ok) return r;
+  if(r.status === 400 && Object.keys(optional).length){
+    const e = await httpError(r);
+    if(!UNKNOWN_ARG_RE.test(e.message)) throw e;
+    r = await send(url, core);
+    if(r.ok) return r;
+  }
+  if(r.status === 404 && !/\/v\d+\/chat\/completions$/.test(url)){
+    const r2 = await send(url.replace(/\/chat\/completions$/, "/v1/chat/completions"), {...core, ...optional});
+    if(r2.ok) return r2;
+  }
+  throw await httpError(r);
 }
 /* 统一 HTTP 错误：带上 status，供 isRetryableLLM 判定 5xx 可重试。 */
 async function httpError(r){
@@ -3673,33 +3880,44 @@ function networkHint(err, cfg){
   }
   return t("msg.error.suffix");
 }
-async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, provider}){
+async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink, provider}){
   const url = normalizeBase(cfg.base, provider) + "/chat/completions";
   const messages = buildOpenAIMessages(chat);
-  const body = {
+  // 核心字段：任何 OpenAI 兼容端点都认。
+  const core = {
     model, messages, stream:true,
     temperature: llmTemp(),
+    ...samplingParams(),
   };
-  if(state.general.maxTokens) body.max_tokens = Number(state.general.maxTokens);
-  // 让支持分离思考的服务端把思考独立返回
-  if(state.general.showThinking){
-    if(provider==="ollama") body.think = true;            // Ollama 扩展参数
-    body.include_reasoning = true;                         // OpenRouter 等
-    body.reasoning = { effort:"medium" };                  // 部分新版兼容
-  }else{
-    if(provider==="ollama") body.think = false;
+  if(state.general.maxTokens) core.max_tokens = Number(state.general.maxTokens);
+  // 可选/非标字段：严格端点（Azure、部分 vLLM/网关）会以 400 "unrecognized request
+  // argument" 拒绝整个请求，所以单独存放，失败时剥掉重发一次（见 postChatCompletions）。
+  const optional = {};
+  const think = thinkMode();
+  if(think !== "auto"){
+    // Qwen3 等混合思考模型的真正开关（vLLM / SGLang / llama.cpp --jinja）。
+    // 不发这个字段的话，"关闭思考"只是把已经生成的 CoT 丢掉，token 和时延照付。
+    optional.chat_template_kwargs = { enable_thinking: think === "on" };
+  }
+  if(provider === "ollama"){
+    // Ollama 的 OpenAI 兼容端点支持 think 扩展；auto 时沿用旧行为
+    optional.think = think === "auto" ? !!state.general.showThinking : think === "on";
+  }
+  if(/(^|\.)openrouter\.ai$/i.test(hostOf(url))){
+    // OpenRouter 专有的统一推理参数 —— 发给别家会 400，所以只在这里发
+    optional.include_reasoning = !!state.general.showThinking;
+    optional.reasoning = think === "off" ? { exclude:true } : { effort:"medium" };
   }
   // llama.cpp's slot/prompt-cache reuse can get confused by multimodal chunks
   // whose token positions are not strictly one-token-per-position. Avoid the
   // LCP reuse path for local OpenAI-compatible image requests.
   if(provider==="ollama" && openAIMessagesContainImages(messages)){
-    body.cache_prompt = false;
+    optional.cache_prompt = false;
   }
   const headers = {"Content-Type":"application/json"};
   if(cfg.key) headers["Authorization"] = "Bearer "+cfg.key;
-  const r = await fetch(url,{method:"POST", headers, body:JSON.stringify(body), signal});
-  if(!r.ok) throw await httpError(r);
-  const parser = makeThinkTagParser(onReasoning, onContent);
+  const r = await postChatCompletions(url, headers, core, optional, signal);
+  const parser = makeThinkTagParser(onReasoning, onContent, onOrphanThink);
   let streamErr = null, finish = "";
   await readSSE(r, (json)=>{
     // 有些本地/兼容服务端会在 HTTP 200 的流里直接回传错误对象
@@ -3720,8 +3938,22 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
   else if(finish === "content_filter") onContent("\n\n> ⚠️ "+t("msg.blocked"));
 }
 function assistantRequestContent(m){
+  // 出错/中止/空响应气泡里的文字是给人看的提示，不该再作为模型输出回灌上下文 ——
+  // 小模型很容易顺着 "错误: ..." 往下解释。
+  if(m?.error) return null;
   const content = (m?.content ?? "").toString();
   return content.trim() ? content : null;
+}
+/* 合并相邻同角色消息。上面会丢弃不可用的 assistant 轮次，于是可能留下连续两条
+   user；Anthropic 要求角色交替，Gemma/Mistral 的 chat template 也会直接报错。 */
+function mergeAdjacentRoles(list, mergeInto){
+  const out = [];
+  for(const m of list){
+    const prev = out[out.length-1];
+    if(prev && prev.role === m.role) mergeInto(prev, m);
+    else out.push(m);
+  }
+  return out;
 }
 function openAIMessagesContainImages(messages){
   return messages.some(m => Array.isArray(m.content) && m.content.some(p => p?.type === "image_url"));
@@ -3730,7 +3962,7 @@ function buildOpenAIMessages(chat){
   const out = [];
   const sys = effectiveSystemPrompt(chat);
   if(sys) out.push({role:"system", content:sys});
-  const msgs = lastN(chat.messages);
+  const msgs = lastN(chat.messages, chat);
   const allowAttach = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
     if(m.role==="assistant"){
@@ -3755,7 +3987,16 @@ function buildOpenAIMessages(chat){
       out.push({role:"user", content:txt});
     }
   }
-  return out;
+  // 丢弃错误轮次后可能留下连续 user 消息；部分本地 chat template
+  // （Gemma / Mistral 系）会直接报 "roles must alternate"。合并掉。
+  return mergeAdjacentRoles(out, (a,b)=>{
+    const parts = v => Array.isArray(v) ? v : [{type:"text", text:String(v||"")}];
+    if(typeof a.content === "string" && typeof b.content === "string"){
+      a.content = [a.content, b.content].filter(Boolean).join("\n\n");
+    }else{
+      a.content = [...parts(a.content), ...parts(b.content)];
+    }
+  });
 }
 
 /* -------- 本地后端协议探测（Ollama / llama.cpp / LM Studio） -------- */
@@ -3783,13 +4024,13 @@ async function pickLocalProtocol(cfg){
 }
 
 /* -------- Ollama 原生端点（图片/思考支持更好） -------- */
-async function callOllamaNative({cfg, model, chat, signal, onContent, onReasoning}){
+async function callOllamaNative({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink}){
   let base = cfg.base.replace(/\/+$/,"").replace(/\/v\d+$/,""); // 去掉 /v1
   const url = base + "/api/chat";
   const messages = [];
   const sysO = effectiveSystemPrompt(chat);
   if(sysO) messages.push({role:"system", content:sysO});
-  const msgsO = lastN(chat.messages);
+  const msgsO = lastN(chat.messages, chat);
   const allowAttachO = computeAttachmentAllowSet(msgsO);
   for(const m of msgsO){
     if(m.role==="assistant"){
@@ -3809,18 +4050,31 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
     }
     messages.push(msg);
   }
+  // 丢弃错误轮次后可能留下连续 user 消息，部分 chat template（Gemma/Mistral 系）会直接报错
+  const mergedO = mergeAdjacentRoles(messages, (a,b)=>{
+    a.content = [a.content, b.content].filter(Boolean).join("\n\n");
+    if(b.images) a.images = [...(a.images||[]), ...b.images];
+  });
   const body = {
-    model, messages, stream:true,
-    think: !!state.general.showThinking,
-    options:{ temperature: llmTemp() }
+    model, messages: mergedO, stream:true,
+    options:{ temperature: llmTemp(), ...samplingParams() }
   };
+  // auto 时沿用旧行为（跟随"显示思考"开关），on/off 为显式覆盖
+  const thinkO = thinkMode();
+  body.think = thinkO === "auto" ? !!state.general.showThinking : thinkO === "on";
   if(state.general.maxTokens) body.options.num_predict = Number(state.general.maxTokens);
+  // Ollama 默认上下文窗口很小（常见 4096），超出的部分会被服务端静默丢弃 ——
+  // 最先被丢掉的恰好是排在最前面的 system prompt / 场景记忆，而且毫无报错。
+  const numCtx = optNum(state.general.numCtx);
+  if(numCtx) body.options.num_ctx = numCtx;
+  // 让模型常驻，避免每轮冷加载把首字节拖到连接看门狗之外
+  if(state.general.keepAlive) body.keep_alive = state.general.keepAlive;
   const headers = {"Content-Type":"application/json"};
   if(cfg.key) headers["Authorization"] = "Bearer "+cfg.key;
   const r = await fetch(url,{method:"POST", headers, body:JSON.stringify(body), signal});
   if(!r.ok) throw await httpError(r);
   // Ollama 用 NDJSON 流式（每行一个 JSON）
-  const parser = makeThinkTagParser(onReasoning, onContent);
+  const parser = makeThinkTagParser(onReasoning, onContent, onOrphanThink);
   const reader = r.body.getReader();
   const dec = new TextDecoder();
   let buf = "", streamErr = null, doneReason = "";
@@ -3857,7 +4111,7 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
 async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
   const url = cfg.base.replace(/\/+$/,"") + "/messages";
   const messages = [];
-  const msgs = lastN(chat.messages);
+  const msgs = lastN(chat.messages, chat);
   const allowAttachC = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
     if(m.role==="assistant"){
@@ -3879,7 +4133,10 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
     messages.push({role:"user", content:blocks});
   }
   const body = {
-    model, messages, stream:true,
+    model,
+    // 丢弃错误轮次后可能留下连续 user 消息，Anthropic 要求角色交替
+    messages: mergeAdjacentRoles(messages, (a,b)=>{ a.content = [...a.content, ...b.content]; }),
+    stream:true,
     max_tokens: Number(state.general.maxTokens)||4096,
     temperature: llmTemp(),
   };
@@ -3911,7 +4168,7 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
 async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
   const url = `${cfg.base.replace(/\/+$/,"")}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse&key=${encodeURIComponent(cfg.key)}`;
   const contents = [];
-  const msgs = lastN(chat.messages);
+  const msgs = lastN(chat.messages, chat);
   const allowAttachG = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
     if(m.role==="assistant"){
@@ -3937,13 +4194,14 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
     temperature: llmTemp(),
     maxOutputTokens: Number(state.general.maxTokens)||undefined
   };
-  // 关闭思考时：让 Gemini 2.5 直接不思考；开启时：要求返回思考摘要
-  if(!state.general.showThinking){
-    genCfg.thinkingConfig = { thinkingBudget: 0 };
-  }else{
-    genCfg.thinkingConfig = { includeThoughts: true };
-  }
-  const body = { contents, generationConfig: genCfg };
+  // 思考模式优先；auto 时沿用旧行为（跟随"显示思考"开关）
+  const thinkG = thinkMode();
+  const wantThinkG = thinkG === "auto" ? !!state.general.showThinking : thinkG === "on";
+  genCfg.thinkingConfig = wantThinkG ? { includeThoughts: true } : { thinkingBudget: 0 };
+  const body = {
+    contents: mergeAdjacentRoles(contents, (a,b)=>{ a.parts = [...(a.parts||[]), ...(b.parts||[])]; }),
+    generationConfig: genCfg
+  };
   const sysG = effectiveSystemPrompt(chat);
   if(sysG) body.systemInstruction = {parts:[{text:sysG}]};
   const r = await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),signal});
@@ -3994,7 +4252,7 @@ async function readSSE(response, onEvent){
   if(buf.trim()) handleLine(buf.replace(/\r$/,""));
 }
 
-function lastN(messages){
+function lastN(messages, chat){
   const n = Math.max(2, Number(state.general.historyN)||40);
   // Honor context dividers: only consider messages after the most recent divider
   let start = 0;
@@ -4002,7 +4260,45 @@ function lastN(messages){
     if(messages[i].role === "divider"){ start = i+1; break; }
   }
   const slice = messages.slice(start).filter(m=>m.role !== "divider");
-  return slice.slice(-n);
+  return fitTokenBudget(slice.slice(-n), chat);
+}
+
+/* 粗略 token 估算：CJK 按 1 字/token，其余按 4 字符/token。只用于"别把上下文窗口
+   撑爆"的二级裁剪，不追求精确 —— 条数窗口（historyN）挡不住夹带 PDF 正文的长消息。 */
+function estimateTokens(text){
+  const s = String(text||"");
+  if(!s) return 0;
+  const cjk = (s.match(/[\u3400-\u9fff\u3040-\u30ff\uac00-\ud7af]/g)||[]).length;
+  return Math.ceil(cjk + (s.length - cjk)/4);
+}
+const IMAGE_TOKEN_COST = { low:300, standard:1200, high:1800 };
+function estimateMessageTokens(m, withAttachments){
+  let n = estimateTokens(m.content) + 8;   // 角色/分隔符开销
+  if(withAttachments){
+    for(const a of (m.attachments||[])){
+      if(a.kind === "file" && a.text) n += estimateTokens(a.text);
+      else if(a.kind === "image") n += IMAGE_TOKEN_COST[state.general.imageDetail] ?? IMAGE_TOKEN_COST.standard;
+    }
+  }
+  return n;
+}
+/* 在条数窗口之上再按 token 预算从最旧的一端裁剪；留空 = 不启用。
+   预算里先扣掉 system prompt 和预留的输出长度，最后一条消息永远保留。 */
+function fitTokenBudget(list, chat){
+  const budget = optNum(state.general.contextTokenBudget);
+  if(!budget || budget <= 0 || !list.length) return list;
+  const allow = computeAttachmentAllowSet(list);   // 只对真正会发出去的附件计费
+  let left = budget
+    - estimateTokens(chat ? effectiveSystemPrompt(chat) : "")
+    - (Number(state.general.maxTokens) || 0);
+  const kept = [];
+  for(let i = list.length-1; i >= 0; i--){
+    const cost = estimateMessageTokens(list[i], allow.has(list[i]));
+    if(kept.length && left - cost < 0) break;
+    left -= cost;
+    kept.unshift(list[i]);
+  }
+  return kept;
 }
 
 /* Attachments (images/files) are expensive "memory" — resending them on every
@@ -4058,6 +4354,13 @@ function openSettings(){
   document.getElementById("cfg_temp").value = state.general.temperature;
   document.getElementById("cfg_max_tokens").value = state.general.maxTokens;
   document.getElementById("cfg_history_n").value = state.general.historyN;
+  document.getElementById("cfg_ctx_budget").value = state.general.contextTokenBudget ?? "";
+  document.getElementById("cfg_think_mode").value = thinkMode();
+  document.getElementById("cfg_num_ctx").value = state.general.numCtx ?? "";
+  document.getElementById("cfg_top_p").value = state.general.topP ?? "";
+  document.getElementById("cfg_top_k").value = state.general.topK ?? "";
+  document.getElementById("cfg_min_p").value = state.general.minP ?? "";
+  document.getElementById("cfg_presence_penalty").value = state.general.presencePenalty ?? "";
   document.getElementById("cfg_scenario_autocompress").checked = state.general.scenarioAutoCompress !== false;
   document.getElementById("cfg_scenario_compress_chars").value = state.general.scenarioCompressChars || 4000;
   document.getElementById("cfg_image_detail").value = state.general.imageDetail || "standard";
@@ -4081,6 +4384,15 @@ function saveSettings(){
   state.general.temperature = Number(document.getElementById("cfg_temp").value)||0.7;
   state.general.maxTokens = document.getElementById("cfg_max_tokens").value.trim();
   state.general.historyN = Number(document.getElementById("cfg_history_n").value)||40;
+  // 采样类字段保持字符串："" 表示不发送，显式 0 也要能存下来
+  const cfgStr = id => document.getElementById(id).value.trim();
+  state.general.contextTokenBudget = cfgStr("cfg_ctx_budget");
+  state.general.thinkMode = document.getElementById("cfg_think_mode").value || "auto";
+  state.general.numCtx = cfgStr("cfg_num_ctx");
+  state.general.topP = cfgStr("cfg_top_p");
+  state.general.topK = cfgStr("cfg_top_k");
+  state.general.minP = cfgStr("cfg_min_p");
+  state.general.presencePenalty = cfgStr("cfg_presence_penalty");
   state.general.scenarioAutoCompress = document.getElementById("cfg_scenario_autocompress").checked;
   state.general.scenarioCompressChars = Math.max(500, Number(document.getElementById("cfg_scenario_compress_chars").value)||4000);
   state.general.imageDetail = document.getElementById("cfg_image_detail").value || "standard";
