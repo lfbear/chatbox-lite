@@ -3689,6 +3689,12 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
   }else{
     if(provider==="ollama") body.think = false;
   }
+  // llama.cpp's slot/prompt-cache reuse can get confused by multimodal chunks
+  // whose token positions are not strictly one-token-per-position. Avoid the
+  // LCP reuse path for local OpenAI-compatible image requests.
+  if(provider==="ollama" && openAIMessagesContainImages(messages)){
+    body.cache_prompt = false;
+  }
   const headers = {"Content-Type":"application/json"};
   if(cfg.key) headers["Authorization"] = "Bearer "+cfg.key;
   const r = await fetch(url,{method:"POST", headers, body:JSON.stringify(body), signal});
@@ -3713,6 +3719,13 @@ async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasonin
   if(finish === "length") onContent("\n\n> ⚠️ "+t("msg.truncated"));
   else if(finish === "content_filter") onContent("\n\n> ⚠️ "+t("msg.blocked"));
 }
+function assistantRequestContent(m){
+  const content = (m?.content ?? "").toString();
+  return content.trim() ? content : null;
+}
+function openAIMessagesContainImages(messages){
+  return messages.some(m => Array.isArray(m.content) && m.content.some(p => p?.type === "image_url"));
+}
 function buildOpenAIMessages(chat){
   const out = [];
   const sys = effectiveSystemPrompt(chat);
@@ -3720,7 +3733,11 @@ function buildOpenAIMessages(chat){
   const msgs = lastN(chat.messages);
   const allowAttach = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
-    if(m.role==="assistant"){ out.push({role:"assistant", content:m.content}); continue; }
+    if(m.role==="assistant"){
+      const content = assistantRequestContent(m);
+      if(content) out.push({role:"assistant", content});
+      continue;
+    }
     // user
     const parts = [];
     let txt = m.content||"";
@@ -3775,7 +3792,11 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
   const msgsO = lastN(chat.messages);
   const allowAttachO = computeAttachmentAllowSet(msgsO);
   for(const m of msgsO){
-    if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
+    if(m.role==="assistant"){
+      const content = assistantRequestContent(m);
+      if(content) messages.push({role:"assistant", content});
+      continue;
+    }
     let txt = m.content||"";
     const attachments = allowAttachO.has(m) ? (m.attachments||[]) : [];
     const fileTexts = attachments.filter(a=>a.kind==="file" && a.text);
@@ -3839,7 +3860,11 @@ async function callClaude({cfg, model, chat, signal, onContent, onReasoning}){
   const msgs = lastN(chat.messages);
   const allowAttachC = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
-    if(m.role==="assistant"){ messages.push({role:"assistant", content:m.content}); continue; }
+    if(m.role==="assistant"){
+      const content = assistantRequestContent(m);
+      if(content) messages.push({role:"assistant", content});
+      continue;
+    }
     const blocks = [];
     let txt = m.content||"";
     const attachmentsC = allowAttachC.has(m) ? (m.attachments||[]) : [];
@@ -3889,7 +3914,11 @@ async function callGemini({cfg, model, chat, signal, onContent, onReasoning}){
   const msgs = lastN(chat.messages);
   const allowAttachG = computeAttachmentAllowSet(msgs);
   for(const m of msgs){
-    if(m.role==="assistant"){ contents.push({role:"model", parts:[{text:m.content}]}); continue; }
+    if(m.role==="assistant"){
+      const content = assistantRequestContent(m);
+      if(content) contents.push({role:"model", parts:[{text:content}]});
+      continue;
+    }
     const parts = [];
     let txt = m.content||"";
     const attachmentsG = allowAttachG.has(m) ? (m.attachments||[]) : [];
