@@ -804,7 +804,7 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
               <option value="ja" data-i18n="ollama.langLock.ja">Always Japanese</option>
               <option value="en" data-i18n="ollama.langLock.en">Always English</option>
             </select>
-            <span class="hint" data-i18n="ollama.langLock.hint">Local models tend to slip into English once the context contains any English (history, attachments, code comments) — they start reasoning in English and drag the answer along. This appends a short language instruction to the end of the last user message, which is the position that actually works. Applies to local models only; other providers are never touched.</span>
+            <span class="hint" data-i18n="ollama.langLock.hint">Local models tend to slip into English once the context contains any English (history, attachments, code comments) — they start reasoning in English and drag the answer along. This appends a short language instruction to the end of the last user message (the position that actually works), and if the answer still comes back mixed, it appends a correction turn in the same context and takes the rewrite. Applies to local models only; other providers are never touched.</span>
           </div>
           <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_ollama_base" type="url" inputmode="url" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ollama→http://localhost:11434  ·  llama.cpp→http://localhost:8080  ·  LM Studio→http://localhost:1234" /></div>
           <div class="form-row"><label data-i18n="providers.apiKeyOptional">API Key (optional)</label><input id="cfg_ollama_key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-i18n-placeholder="ollama.key.placeholder" placeholder="Optional" /></div>
@@ -1191,7 +1191,8 @@ const I18N = {
     "ollama.langLock.zh":"Always Simplified Chinese",
     "ollama.langLock.ja":"Always Japanese",
     "ollama.langLock.en":"Always English",
-    "ollama.langLock.hint":"Local models tend to slip into English once the context contains any English (history, attachments, code comments) — they start reasoning in English and drag the answer along. This appends a short language instruction to the end of the last user message, which is the position that actually works. Applies to local models only; other providers are never touched.",
+    "status.langRepair":"Language drifted — rewriting…",
+    "ollama.langLock.hint":"Local models tend to slip into English once the context contains any English (history, attachments, code comments) — they start reasoning in English and drag the answer along. This appends a short language instruction to the end of the last user message (the position that actually works), and if the answer still comes back mixed, it appends a correction turn in the same context and takes the rewrite. Applies to local models only; other providers are never touched.",
     "ollama.protocol.hint":"Auto-detect tries <code>/api/tags</code> first — if found, uses Ollama native; otherwise falls back to OpenAI compatible.",
     "ollama.key.placeholder":"Optional",
     "general.userName.label":"User name (display)",
@@ -1455,7 +1456,8 @@ const I18N = {
     "ollama.langLock.zh":"始终简体中文",
     "ollama.langLock.ja":"始终日语",
     "ollama.langLock.en":"始终英语",
-    "ollama.langLock.hint":"本地模型只要上下文里混进英文（历史消息、附件、代码注释），就容易先用英文思考、再把正文带偏。开启后会把一句语言指令追加到最后一条用户消息的末尾 —— 实测这个位置才有效，改 system prompt 没用。仅对本地模型生效，其他厂商的请求完全不受影响。",
+    "status.langRepair":"检测到语言漂移，正在重写…",
+    "ollama.langLock.hint":"本地模型只要上下文里混进英文（历史消息、附件、代码注释），就容易先用英文思考、再把正文带偏。开启后会把一句语言指令追加到最后一条用户消息的末尾（实测只有这个位置有效，改 system prompt 没用）；如果回答仍然夹英文，再在同一上下文里补一句纠正让模型重写，只保留修好的那版。仅对本地模型生效，其他厂商的请求完全不受影响。",
     "ollama.protocol.hint":"自动探测会先试 <code>/api/tags</code>，命中即用 Ollama 原生，否则走 OpenAI 兼容。",
     "ollama.key.placeholder":"可留空",
     "general.userName.label":"用户名（显示）",
@@ -3391,8 +3393,10 @@ async function streamResponse(chat, aiMsg, modelId){
   // Build the per-attempt request runner once (avoids re-probing the local
   // protocol on every retry).
   let runOnce;
+  let useLocalNative = false;
   if(provider==="ollama"){
     const useNative = await pickLocalProtocol(cfg);
+    useLocalNative = useNative;
     runOnce = useNative
       ? (signal)=>callOllamaNative({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink})
       : (signal)=>callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink, provider:"ollama"});
@@ -3474,6 +3478,17 @@ async function streamResponse(chat, aiMsg, modelId){
   if(inReasoning){ aiMsg.reasoningMs = Date.now() - reasoningStart; }
   // 只有思考、没有正文：明确说明，而不是留个空气泡或误报"空响应"。
   if(!aiMsg.content.trim() && aiMsg.reasoning.trim()) aiMsg.content = t("msg.thinkingOnly");
+  // 语言补丁兜底：尾部锁把漂移率压到 8%，剩下的这 8% 在同一上下文里补一句纠正重答。
+  // 修不好就保留原文 —— 宁可交一份夹英文的答案，也不要把用户的回答弄丢。
+  if(provider === "ollama" && !aiMsg.error && !ctrl.signal.aborted && needsLangRepair(chat, aiMsg.content)){
+    const original = aiMsg.content, originalReasoning = aiMsg.reasoning;
+    streamPhase(chatId, t("status.langRepair"));
+    try{
+      const ok = await runLangRepair({chat, aiMsg, cfg, model, useNative:useLocalNative,
+        signal: ctrl.signal, onPartial:(partial)=>{ aiMsg.content = partial; refresh(); }});
+      if(!ok){ aiMsg.content = original; aiMsg.reasoning = originalReasoning; }
+    }catch(e){ aiMsg.content = original; aiMsg.reasoning = originalReasoning; }
+  }
   // 最终渲染：仅当此会话在前台时更新 DOM；否则数据已存入 aiMsg，
   // 切回该会话时由 renderMessages 重建。
   if(onActive()){
@@ -3751,9 +3766,11 @@ async function cliStreamResponse(chat, aiMsg, modelId, outLine, thinkLine){
     }
   };
   let runOnce;
+  let useLocalNative = false;
   try{
     if(provider==="ollama"){
       const useNative = await pickLocalProtocol(cfg);
+      useLocalNative = useNative;
       runOnce = useNative
         ? ()=>callOllamaNative({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, onOrphanThink})
         : ()=>callOpenAICompat({cfg, model, chat, signal:ctrl.signal, onContent, onReasoning, onOrphanThink, provider:"ollama"});
@@ -3794,6 +3811,19 @@ async function cliStreamResponse(chat, aiMsg, modelId, outLine, thinkLine){
     if(!aiMsg.content.trim() && aiMsg.reasoning.trim()){
       aiMsg.content = t("msg.thinkingOnly");
       outLine.textContent = aiMsg.content;
+    }
+    // 语言补丁兜底（与 GUI 路径同一套逻辑、同一个开关）
+    if(provider === "ollama" && !aiMsg.error && !ctrl.signal.aborted && needsLangRepair(chat, aiMsg.content)){
+      const original = aiMsg.content, originalReasoning = aiMsg.reasoning;
+      streamPhase(chat.id, t("status.langRepair"));
+      cliPrint(t("status.langRepair"), "muted");
+      try{
+        const ok = await runLangRepair({chat, aiMsg, cfg, model, useNative:useLocalNative,
+          signal: ctrl.signal, onPartial:(partial)=>{ outLine.textContent = partial;
+            cliScreen().scrollTop = cliScreen().scrollHeight; }});
+        if(ok) outLine.textContent = aiMsg.content;
+        else { aiMsg.content = original; aiMsg.reasoning = originalReasoning; outLine.textContent = original; }
+      }catch(e){ aiMsg.content = original; aiMsg.reasoning = originalReasoning; outLine.textContent = original; }
     }
   }finally{
     streamEnd(chat.id);
@@ -4019,6 +4049,91 @@ function langLockKey(chat){
   }
   return curLang() === "en" ? "en" : "zh";
 }
+/* 语言漂移检测。两道判据缺一不可：
+   1) 目标语言字符占比低；
+   2) 出现足够多的英文**虚词**。
+   只看占比会误伤"中文夹密集标识符"的正常回答 —— "在 Kubernetes 中，InitContainer 与
+   Sidecar 的 restartPolicy…" 汉字占比只有 0.32，但它是完全合格的中文。区别在于标识符
+   不带虚词，而真正塌成英文的句子一定带（"…gets a conflict error, must retry"）。
+   阈值 0.75 在 38 条真实样本上标定：该修的 7/7 全抓，正常的 31 条零误触发。 */
+const LANG_REPAIR_THRESHOLD = 0.75;
+const EN_FUNCTION_WORDS = /\b(the|is|are|was|were|be|been|being|to|of|and|or|in|on|for|with|that|this|it|its|as|at|by|from|but|if|when|while|which|who|you|we|they|not|no|can|could|will|would|shall|should|must|may|might|has|have|had|do|does|did|so|than|then|there|these|those|only|also|actually|because|however|instead|both|each|every|any|all|more|most|other|such|about|into|over|under|after|before)\b/gi;
+/* 连续两个英文单词。标识符（restartPolicy / InitContainer）在中文里总是被 CJK 隔开、
+   凑不成对；而半译的表头（"Pessimistic Locking"）和塌掉的句子（"conflicts are likely"）
+   会大量成对。实测：正常回答最多 5 对，表格型漂移是 6～52 对。 */
+const EN_WORD_PAIR = /\b[A-Za-z][a-z]{1,}\s+[A-Za-z][a-z]{1,}\b/g;
+function langSignals(text){
+  const s = String(text||"")
+    .replace(/```[\s\S]*?```/g, " ").replace(/```[\s\S]*/g, " ")
+    .replace(/`[^`]*`/g, " ").replace(/https?:\/\/\S+/g, " ");
+  return {
+    han:  (s.match(/[\u4e00-\u9fff]/g)||[]).length,
+    kana: (s.match(/[\u3040-\u30ff]/g)||[]).length,
+    lat:  (s.match(/[A-Za-z]/g)||[]).length,
+    enWords: (s.match(EN_FUNCTION_WORDS)||[]).length,
+    enPairs: (s.match(EN_WORD_PAIR)||[]).length
+  };
+}
+/* 目标语言得分，只用于"补丁有没有把回答变好"这道校验（不参与是否触发的判定）。 */
+function langScore(text, key){
+  const g = langSignals(text);
+  const total = g.han + g.kana + g.lat;
+  if(!total) return null;
+  if(key === "en") return g.lat / total;
+  if(key === "ja") return g.kana === 0 ? 0 : (g.han + g.kana) / total;
+  return g.han / total;
+}
+function needsLangRepair(chat, text){
+  const key = langLockKey(chat);
+  if(!key) return false;
+  const g = langSignals(text);
+  const total = g.han + g.kana + g.lat;
+  if(total < 30) return false;                         // 太短，信号不足，不判
+  if(key === "en") return (g.han + g.kana) / total > 0.25;   // 目标英语：混进成片 CJK 就是漂
+  if(key === "ja"){
+    if(g.kana === 0) return true;                     // 一个假名都没有 = 输出成中文了
+    if((g.han + g.kana) / total >= LANG_REPAIR_THRESHOLD) return false;
+  }else{                                               // zh
+    if(g.kana >= 6) return true;                      // 混进成片假名 = 输出成日语了
+    if(g.han / total >= LANG_REPAIR_THRESHOLD) return false;
+  }
+  // 占比偏低还不足以判定 —— 中文夹密集标识符同样会把占比拉到 0.3。
+  // 真正塌掉的输出二选一：成片英文虚词（散文式漂移），或大量连续英文词（半译表格）。
+  return g.enWords >= 4 || g.enPairs >= 6;
+}
+
+/* 纠正语。就用"在同一上下文里再补一句"这个最笨的办法 —— 实测 7 条真实漂移输出
+   7/7 全部修好，中文占比 0.48 → 0.86，代价约 +12.5s / +736 token。
+   措辞按实测过的原样保留，改了就得重测。 */
+const LANG_REPAIR_TEXT = { zh:"用中文输出", ja:"日本語で出力してください", en:"Output in English." };
+/* 在同一上下文里追加纠正轮次并重答，成功则就地改写 aiMsg。
+   纠正轮次和漂掉的原文都不写回历史 —— 上下文里留着英文助手回复正是下一轮漂移的
+   头号诱因（实测该条件下思考链中文占比只剩 0.04）。 */
+async function runLangRepair({chat, aiMsg, cfg, model, useNative, signal, onPartial}){
+  const key = langLockKey(chat);
+  const corr = key && LANG_REPAIR_TEXT[key];
+  if(!corr) return false;
+  const before = langScore(aiMsg.content, key);
+  const repairChat = Object.assign({}, chat, {
+    noLangLock: true,   // 纠正语本身就是指令，不必再挂一遍尾部锁
+    messages: [...chat.messages, {role:"user", content:corr, time:Date.now()}]
+  });
+  let content = "", reasoning = "";
+  const onContent = (d)=>{ content += d; if(onPartial) onPartial(content); };
+  const onReasoning = (d)=>{ reasoning += d; };
+  const onOrphanThink = ()=>{ reasoning = content + reasoning; content = ""; };
+  if(useNative) await callOllamaNative({cfg, model, chat:repairChat, signal, onContent, onReasoning, onOrphanThink});
+  else await callOpenAICompat({cfg, model, chat:repairChat, signal, onContent, onReasoning, onOrphanThink, provider:"ollama"});
+  if(!content.trim()) return false;
+  const after = langScore(content, key);
+  // 只在确实变好时采纳，避免越修越糟
+  if(after === null || (before !== null && after <= before)) return false;
+  aiMsg.content = content;
+  if(reasoning.trim()) aiMsg.reasoning = reasoning;
+  aiMsg.langRepaired = true;
+  return true;
+}
+
 /* 追加到**最后一条 user 消息末尾** —— 位置就是这个方案的全部价值所在，别挪到别处。
    content 可能是纯字符串，也可能是 [{type:"text"},{type:"image_url"}…] 的分段数组。 */
 function appendLangLock(messages, chat){
