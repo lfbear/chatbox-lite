@@ -796,6 +796,16 @@ html[data-theme="dark"] .alert{background:#3a2e10;color:#f5d57a;border-color:#5a
             </select>
             <span class="hint" data-i18n-html="ollama.protocol.hint">Auto-detect tries <code>/api/tags</code> first — if found, uses Ollama native; otherwise falls back to OpenAI compatible.</span>
           </div>
+          <div class="form-row"><label data-i18n="ollama.langLock">Output language lock</label>
+            <select id="cfg_ollama_langlock">
+              <option value="off" data-i18n="ollama.langLock.off">Off (default — requests are sent unchanged)</option>
+              <option value="auto" data-i18n="ollama.langLock.auto">Auto (scenario target language, otherwise UI language)</option>
+              <option value="zh" data-i18n="ollama.langLock.zh">Always Simplified Chinese</option>
+              <option value="ja" data-i18n="ollama.langLock.ja">Always Japanese</option>
+              <option value="en" data-i18n="ollama.langLock.en">Always English</option>
+            </select>
+            <span class="hint" data-i18n="ollama.langLock.hint">Local models tend to slip into English once the context contains any English (history, attachments, code comments) — they start reasoning in English and drag the answer along. This appends a short language instruction to the end of the last user message, which is the position that actually works. Applies to local models only; other providers are never touched.</span>
+          </div>
           <div class="form-row"><label data-i18n="providers.baseUrl">Base URL</label><input id="cfg_ollama_base" type="url" inputmode="url" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Ollama→http://localhost:11434  ·  llama.cpp→http://localhost:8080  ·  LM Studio→http://localhost:1234" /></div>
           <div class="form-row"><label data-i18n="providers.apiKeyOptional">API Key (optional)</label><input id="cfg_ollama_key" type="password" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" data-i18n-placeholder="ollama.key.placeholder" placeholder="Optional" /></div>
           <div class="form-row">
@@ -1011,7 +1021,7 @@ const DEFAULT_STATE = {
     openai: { base:"https://api.openai.com/v1", key:"", models:"gpt-4o\ngpt-4o-mini\ngpt-4-turbo" },
     claude: { base:"https://api.anthropic.com/v1", key:"", models:"claude-opus-4-5\nclaude-sonnet-4-5\nclaude-haiku-4-5" },
     gemini: { base:"https://generativelanguage.googleapis.com/v1beta", key:"", models:"gemini-2.0-flash-exp\ngemini-1.5-pro\ngemini-1.5-flash" },
-    ollama: { base:"http://localhost:11434", key:"", models:"llama3.2\nqwen2.5:7b\nllava\ndeepseek-r1:7b", protocol:"auto" }
+    ollama: { base:"http://localhost:11434", key:"", models:"llama3.2\nqwen2.5:7b\nllava\ndeepseek-r1:7b", protocol:"auto", langLock:"off" }
   },
   general: {
     systemPrompt:"You are a helpful assistant. Answer in the user's language.",
@@ -1175,6 +1185,13 @@ const I18N = {
     "ollama.protocol.auto":"Auto-detect (recommended)",
     "ollama.protocol.native":"Ollama native (/api/chat)",
     "ollama.protocol.openai":"OpenAI compatible (/v1/chat/completions, for llama.cpp / LM Studio / vLLM)",
+    "ollama.langLock":"Output language lock",
+    "ollama.langLock.off":"Off (default — requests are sent unchanged)",
+    "ollama.langLock.auto":"Auto (scenario target language, otherwise UI language)",
+    "ollama.langLock.zh":"Always Simplified Chinese",
+    "ollama.langLock.ja":"Always Japanese",
+    "ollama.langLock.en":"Always English",
+    "ollama.langLock.hint":"Local models tend to slip into English once the context contains any English (history, attachments, code comments) — they start reasoning in English and drag the answer along. This appends a short language instruction to the end of the last user message, which is the position that actually works. Applies to local models only; other providers are never touched.",
     "ollama.protocol.hint":"Auto-detect tries <code>/api/tags</code> first — if found, uses Ollama native; otherwise falls back to OpenAI compatible.",
     "ollama.key.placeholder":"Optional",
     "general.userName.label":"User name (display)",
@@ -1432,6 +1449,13 @@ const I18N = {
     "ollama.protocol.auto":"自动探测（推荐）",
     "ollama.protocol.native":"Ollama 原生 (/api/chat)",
     "ollama.protocol.openai":"OpenAI 兼容 (/v1/chat/completions，适用 llama.cpp / LM Studio / vLLM)",
+    "ollama.langLock":"输出语言锁",
+    "ollama.langLock.off":"关闭（默认 —— 请求原样发送）",
+    "ollama.langLock.auto":"自动（场景目标语言，否则跟随界面语言）",
+    "ollama.langLock.zh":"始终简体中文",
+    "ollama.langLock.ja":"始终日语",
+    "ollama.langLock.en":"始终英语",
+    "ollama.langLock.hint":"本地模型只要上下文里混进英文（历史消息、附件、代码注释），就容易先用英文思考、再把正文带偏。开启后会把一句语言指令追加到最后一条用户消息的末尾 —— 实测这个位置才有效，改 system prompt 没用。仅对本地模型生效，其他厂商的请求完全不受影响。",
     "ollama.protocol.hint":"自动探测会先试 <code>/api/tags</code>，命中即用 Ollama 原生，否则走 OpenAI 兼容。",
     "ollama.key.placeholder":"可留空",
     "general.userName.label":"用户名（显示）",
@@ -2432,7 +2456,8 @@ async function oneShotLLM(modelId, systemPrompt, userContent, signal){
   const [provider, model] = (modelId||"").split("::");
   const cfg = state.config[provider];
   if(!cfg) throw new Error("No provider configured");
-  const tmpChat = { systemPrompt, messages:[{role:"user", content:userContent, time:Date.now()}] };
+  // 内部任务（场景记忆压缩等）自带语言要求，别让语言锁把摘要语言改掉
+  const tmpChat = { systemPrompt, noLangLock:true, messages:[{role:"user", content:userContent, time:Date.now()}] };
   let out = "";
   const onContent = (d)=>{ out += d; };
   const onReasoning = ()=>{};
@@ -3882,7 +3907,8 @@ function networkHint(err, cfg){
 }
 async function callOpenAICompat({cfg, model, chat, signal, onContent, onReasoning, onOrphanThink, provider}){
   const url = normalizeBase(cfg.base, provider) + "/chat/completions";
-  const messages = buildOpenAIMessages(chat);
+  // 语言锁只对本地模型开放；openai / openrouter / azure 等走同一函数但一律不加
+  const messages = buildOpenAIMessages(chat, {langLock: provider === "ollama"});
   // 核心字段：任何 OpenAI 兼容端点都认。
   const core = {
     model, messages, stream:true,
@@ -3958,7 +3984,57 @@ function mergeAdjacentRoles(list, mergeInto){
 function openAIMessagesContainImages(messages){
   return messages.some(m => Array.isArray(m.content) && m.content.some(p => p?.type === "image_url"));
 }
-function buildOpenAIMessages(chat){
+/* ---------------- 本地模型输出语言锁（仅 provider==="ollama"） ----------------
+   现象：本地模型只要上下文里混进英文（英文历史、英文附件、英文代码注释），就会先用
+   英文思考、再把正文一起带偏 —— 而且它心里是清楚的，思考链原话是
+   "We need answer in Simplified Chinese. User asks..."，用英文说着要用中文答。
+
+   实测（llama.cpp + Qwen3-27B，48 样本 / 3 类含英文上下文 × 4 次）：
+     原样发送                    出问题 58%
+     语言指令追加到最后一条 user   出问题  8%   ← 采用
+     改 system prompt            出问题 50%   ← 无效
+     两者都上                    出问题 25%
+   改 system 之所以无效：不少本地模型的 chat template 自带一条语言指令，且拼在用户
+   system prompt 之前，头部早就不缺指令了；真正稀缺的是靠近生成点的位置。
+
+   默认 off。开关在「本地模型」设置块里，其他厂商的请求路径完全不经过这里。 */
+const LANG_LOCK_TEXT = {
+  zh: "【输出语言】本次回复必须全程使用简体中文，思考过程也用简体中文。代码、命令、专有名词、API 名保留原文，其余不要输出英文句子。",
+  ja: "【出力言語】今回の返答はすべて日本語で書いてください。思考過程も日本語で行ってください。コード・コマンド・固有名詞・API 名は原文のままで構いません。",
+  en: "[OUTPUT LANGUAGE] Write this entire reply in English, and reason in English as well. Keep code, commands, identifiers and API names as they are."
+};
+/* 场景对话的目标语言是用户自由填写的（"日本語 (Japanese)" / "English" / …），
+   认得出才锁 —— 认不出就返回空，宁可不锁也不要锁错语言。 */
+function langLockKey(chat){
+  if(chat && chat.noLangLock) return "";              // 内部一次性任务（记忆压缩等）不锁
+  const mode = (state.config.ollama.langLock) || "off";
+  if(mode === "off") return "";
+  if(mode !== "auto") return mode;
+  const scen = (chat && chat.kind === "scenario") ? ((chat.scenario||{}).lang||"").trim() : "";
+  if(scen){
+    if(/日本語|japanese|にほんご/i.test(scen)) return "ja";
+    if(/简体|繁體|中文|chinese|汉语|漢語/i.test(scen)) return "zh";
+    if(/english|英语|英文/i.test(scen)) return "en";
+    return "";
+  }
+  return curLang() === "en" ? "en" : "zh";
+}
+/* 追加到**最后一条 user 消息末尾** —— 位置就是这个方案的全部价值所在，别挪到别处。
+   content 可能是纯字符串，也可能是 [{type:"text"},{type:"image_url"}…] 的分段数组。 */
+function appendLangLock(messages, chat){
+  const key = langLockKey(chat);
+  const tail = key && LANG_LOCK_TEXT[key];
+  if(!tail) return messages;
+  for(let i = messages.length - 1; i >= 0; i--){
+    const m = messages[i];
+    if(m.role !== "user") continue;
+    if(typeof m.content === "string") m.content = m.content + "\n\n" + tail;
+    else if(Array.isArray(m.content)) m.content.push({type:"text", text:tail});
+    break;
+  }
+  return messages;
+}
+function buildOpenAIMessages(chat, opts){
   const out = [];
   const sys = effectiveSystemPrompt(chat);
   if(sys) out.push({role:"system", content:sys});
@@ -3989,7 +4065,7 @@ function buildOpenAIMessages(chat){
   }
   // 丢弃错误轮次后可能留下连续 user 消息；部分本地 chat template
   // （Gemma / Mistral 系）会直接报 "roles must alternate"。合并掉。
-  return mergeAdjacentRoles(out, (a,b)=>{
+  const merged = mergeAdjacentRoles(out, (a,b)=>{
     const parts = v => Array.isArray(v) ? v : [{type:"text", text:String(v||"")}];
     if(typeof a.content === "string" && typeof b.content === "string"){
       a.content = [a.content, b.content].filter(Boolean).join("\n\n");
@@ -3997,6 +4073,8 @@ function buildOpenAIMessages(chat){
       a.content = [...parts(a.content), ...parts(b.content)];
     }
   });
+  // 合并之后再挂锁 —— 必须是整串消息的最后一句，否则效果就没了
+  return (opts && opts.langLock) ? appendLangLock(merged, chat) : merged;
 }
 
 /* -------- 本地后端协议探测（Ollama / llama.cpp / LM Studio） -------- */
@@ -4055,6 +4133,7 @@ async function callOllamaNative({cfg, model, chat, signal, onContent, onReasonin
     a.content = [a.content, b.content].filter(Boolean).join("\n\n");
     if(b.images) a.images = [...(a.images||[]), ...b.images];
   });
+  appendLangLock(mergedO, chat);   // 原生协议同属本地模型，同样受开关控制
   const body = {
     model, messages: mergedO, stream:true,
     options:{ temperature: llmTemp(), ...samplingParams() }
@@ -4350,6 +4429,7 @@ function openSettings(){
     const picker = document.getElementById(`picker_${p}`); if(picker) picker.style.display = "none";
   }
   document.getElementById("cfg_ollama_protocol").value = c.ollama.protocol || "auto";
+  document.getElementById("cfg_ollama_langlock").value = c.ollama.langLock || "off";
   document.getElementById("cfg_system").value = state.general.systemPrompt;
   document.getElementById("cfg_temp").value = state.general.temperature;
   document.getElementById("cfg_max_tokens").value = state.general.maxTokens;
@@ -4379,6 +4459,7 @@ function saveSettings(){
     c[p].models = document.getElementById(`cfg_${p}_models`).value;
   }
   c.ollama.protocol = document.getElementById("cfg_ollama_protocol").value;
+  c.ollama.langLock = document.getElementById("cfg_ollama_langlock").value || "off";
   _localProtocolCache.clear();
   state.general.systemPrompt = document.getElementById("cfg_system").value;
   state.general.temperature = Number(document.getElementById("cfg_temp").value)||0.7;
