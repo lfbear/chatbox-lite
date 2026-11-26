@@ -3158,7 +3158,7 @@ async function sendWelcomeReply(chat, aiMsg){
   saveState();
 }
 
-// 解析内联 <think>/<thinking> 标签的流式状态机
+// 解析内联 <think>/<thinking> 与 <|content_thinking|> 消息协议的流式状态机
 // 额外能力：剥离聊天模板泄漏前缀（如 "assistant\n\n<think>..."、"<|im_start|>assistant\n..."）
 function makeThinkTagParser(onReasoning, onContent, onOrphanClose){
   let mode = null;          // null | 'think' | 'content'
@@ -3191,7 +3191,7 @@ function makeThinkTagParser(onReasoning, onContent, onOrphanClose){
     }
     stripped = true; return true;
   }
-  function feed(chunk){
+  function feedInline(chunk){
     pending += chunk;
     while(pending.length){
       if(!stripped && !tryStrip()) return;
@@ -3258,7 +3258,38 @@ function makeThinkTagParser(onReasoning, onContent, onOrphanClose){
       }
     }
   }
+  const MESSAGE_TAGS = [
+    '<|message_model|>', '<|content_thinking|>', '<|content_text|>', '<|end_message|>'
+  ];
+  const MESSAGE_TOKEN = /<\|(message_model|content_thinking|content_text|end_message)\|>/;
+  let messagePending = "";
+  function feed(chunk){
+    messagePending += chunk;
+    let token;
+    while((token = messagePending.match(MESSAGE_TOKEN))){
+      feedInline(messagePending.slice(0, token.index));
+      messagePending = messagePending.slice(token.index + token[0].length);
+      if(token[1] === 'content_thinking'){
+        if(mode !== 'think') feedInline('<think>');
+      }else if(token[1] === 'content_text' || token[1] === 'end_message'){
+        if(mode === 'think') feedInline(closeTag);
+      }
+    }
+    // Hold only a possible protocol-token suffix, including across single-character chunks.
+    const tail = messagePending.lastIndexOf('<');
+    if(tail >= 0 && MESSAGE_TAGS.some(tag => tag.startsWith(messagePending.slice(tail)))){
+      feedInline(messagePending.slice(0, tail));
+      messagePending = messagePending.slice(tail);
+    }else{
+      feedInline(messagePending);
+      messagePending = "";
+    }
+  }
   feed.flush = ()=>{
+    if(messagePending){
+      feedInline(messagePending);
+      messagePending = "";
+    }
     if(pending){
       stripped = true;
       if(mode === 'think') onReasoning(pending);
